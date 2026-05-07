@@ -8,6 +8,7 @@ echo ================================================
 echo.
 
 set CSC="C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe"
+set VERSION=2.6.0
 set OUTPUT=dist\GIDE.exe
 
 if not exist %CSC% (
@@ -45,13 +46,17 @@ echo [+] Build successful: %OUTPUT%
 echo.
 echo Building installer...
 if exist "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" (
+    REM Inno Setup outputs to releases\%VERSION%\ (defined in Installer\setup.iss OutputDir)
     "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" Installer\setup.iss
 ) else (
     echo [!] Inno Setup not found, skipping installer build
 )
 
+if not exist "releases\%VERSION%" mkdir "releases\%VERSION%"
+if exist dist\GIDE.exe copy /Y dist\GIDE.exe "releases\%VERSION%\"
+
 echo.
 echo ================================================
 echo   Build Complete!
+echo   Output: releases\%VERSION%\
 echo ================================================
-pause
