@@ -61,7 +61,7 @@ namespace GIDE
                 Console.ForegroundColor = ConsoleColor.Green;
                 Console.Write("  You: ");
                 Console.ResetColor();
-                string input = Console.ReadLine();
+                string input = ReadMultiLineInput();
                 if (string.IsNullOrEmpty(input)) continue;
 
                 if (input.StartsWith("/"))
@@ -134,14 +134,14 @@ namespace GIDE
         {
             string fileTree = GetProjectFileTree();
             string stackInfo = DetectTechStack();
+            string fileContents = ScanAllProjectFiles();
 
-            return @"You are GIDE, a coding agent. Your identity is GIDE. You are not Qwen, you are not an assistant — you are GIDE.
+            return @"You are GIDE, a coding agent. You write files using tools, not markdown.
 
-You have direct file system access via the tool system below. Never describe what you will do — just do it with the tools.
+=== FILE WRITING FORMAT (MANDATORY) ===
 
----
+To write ANY code, you MUST use this exact structure:
 
-TOOL: Write or overwrite a file
 <<<TOOL:WRITE>>>
 path/to/file.ext
 <<<CONTENT>>>
@@ -149,59 +149,67 @@ complete file content here
 <<<END_CONTENT>>>
 <<<END_TOOL>>>
 
-TOOL: Read a file
+EXAMPLE — writing a C# file:
+
+<<<TOOL:WRITE>>>
+src/Example.cs
+<<<CONTENT>>>
+using System;
+
+namespace Example
+{
+    class Program
+    {
+        static void Main() { Console.WriteLine(""Hello""); }
+    }
+}
+<<<END_CONTENT>>>
+<<<END_TOOL>>>
+
+=== OTHER TOOLS ===
+
 <<<TOOL:READ>>>
 path/to/file.ext
 <<<END_TOOL>>>
 
-TOOL: Run a shell command
 <<<TOOL:RUN>>>
 command here
 <<<END_TOOL>>>
 
-TOOL: List files
 <<<TOOL:LIST>>>
-optional/subdirectory
+directory
 <<<END_TOOL>>>
 
----
+=== RULES ===
 
-RULES — follow exactly:
+1. Use <<<TOOL:WRITE>>> with <<<CONTENT>>> markers for ALL code. Never output raw code.
+2. Write COMPLETE files. No placeholders, no '// TODO', no '// ...', no truncation.
+3. Use EXACT file paths from the project. Do not rename files.
+4. READ before editing if you need current content.
+5. Brief summary after writing (2-4 sentences).
+6. Stay within detected tech stack constraints.
 
-1. ALWAYS use WRITE to create or modify files. Never output file content as plain text.
-2. When fixing or editing an existing file, WRITE to that EXACT file path. Do NOT create a new file with a different name.
-3. Write COMPLETE file content every time. No stubs, no placeholders, no '// TODO', no '// rest of code here', no '...'. Every function fully implemented.
-4. Write the most advanced, complete, and correct implementation you are capable of.
-5. After writing files, give a SHORT summary (2-4 sentences max). No lengthy explanations.
-6. READ a file before editing it if you need to see its current content.
-7. You can use multiple tools in one response.
-8. Tool results are returned to you — use them to verify and continue.
-9. Never truncate file content. If a file is large, write all of it.
-10. STAY WITHIN THE DETECTED TECH STACK. Only use languages, frameworks, libraries, and APIs that are already present in the project or are compatible with the detected runtime/version. Do NOT introduce newer runtimes, package managers, or frameworks not already in use.
+=== PROJECT INFO ===
 
 CURRENT PROJECT: " + WorkDir + @"
 
-DETECTED TECH STACK (you MUST stay within these constraints):
+TECH STACK (stay within these constraints):
 " + stackInfo + @"
 
-PROJECT FILES (these are the ONLY files that exist — use these exact paths when editing):
+PROJECT FILES (use these exact paths):
 " + fileTree + @"
 
----
+=== IMPORTANT ===
 
-CRITICAL RULES ON TECH STACK:
-- If the project targets .NET 4.8, use only .NET 4.8 compatible APIs. No Task.Run with async/await patterns from .NET 6+, no record types, no top-level statements, no nullable reference types syntax, no .NET 6/7/8/9 APIs.
-- If the project uses a specific language version, stay on that version.
-- If the project has existing dependencies (NuGet packages, npm packages, etc.), prefer using those over adding new ones.
-- Do NOT suggest migrating to a newer framework or runtime unless explicitly asked.
+- If targeting .NET 4.8: No async Main, no record types, no top-level statements, no .NET 6+ APIs.
+- When editing a file, use the EXACT path from PROJECT FILES above.
+- NEVER use markdown. ALWAYS use <<<TOOL:WRITE>>> for any code output.
 
-CRITICAL RULES ON FILES:
-- If the user asks you to fix, edit, or improve a file, WRITE to the existing file path shown above.
-- Do NOT invent new filenames. Do NOT create a copy. Overwrite the original.
+=== ALL FILE CONTENTS (PRE-SCANNED) ===
 
----
+" + fileContents + @"
 
-You are GIDE. Write complete code. Use the tools.";
+=== END OF FILE CONTENTS ===";
         }
 
         private static string DetectTechStack()
@@ -393,7 +401,9 @@ You are GIDE. Write complete code. Use the tools.";
                 {
                     // Skip hidden/system dirs
                     string name = Path.GetFileName(entry);
-                    if (name.StartsWith(".") || name == "bin" || name == "obj" || name == "node_modules")
+                    string parentDir = Path.GetFileName(Path.GetDirectoryName(entry));
+                    if (name.StartsWith(".") || name == "bin" || name == "obj" || name == "node_modules" ||
+                        parentDir == "bin" || parentDir == "obj" || parentDir == "node_modules")
                         continue;
 
                     string rel = entry.Substring(WorkDir.Length).TrimStart(Path.DirectorySeparatorChar);
@@ -410,13 +420,124 @@ You are GIDE. Write complete code. Use the tools.";
             }
         }
 
+        private static string ScanAllProjectFiles()
+        {
+            var sb = new StringBuilder();
+            string[] codeExtensions = new[] { ".cs", ".vb", ".fs", ".py", ".js", ".ts", ".jsx", ".tsx", ".java", ".kt", ".go", ".rs", ".c", ".cpp", ".h", ".hpp", ".rb", ".php", ".swift", ".m", ".mm", ".lua", ".pl", ".sh", ".bat", ".ps1", ".sql", ".html", ".htm", ".css", ".scss", ".sass", ".less", ".json", ".xml", ".yaml", ".yml", ".toml", ".ini", ".cfg", ".conf", ".md", ".txt", ".dockerfile", ".csproj", ".vbproj", ".fsproj", ".sln" };
+
+            try
+            {
+                string[] files = Directory.GetFiles(WorkDir, "*", SearchOption.AllDirectories);
+                Array.Sort(files);
+
+                foreach (string file in files)
+                {
+                    string name = Path.GetFileName(file);
+                    string ext = Path.GetExtension(file).ToLowerInvariant();
+                    string parentDir = Path.GetFileName(Path.GetDirectoryName(file));
+
+                    // Skip hidden, binary, and system directories
+                    if (name.StartsWith(".") || parentDir == "bin" || parentDir == "obj" || 
+                        parentDir == "node_modules" || parentDir == ".git" || parentDir == ".vs" ||
+                        parentDir == "packages" || parentDir == "debug" || parentDir == "release")
+                        continue;
+
+                    // Only include recognized code/text file extensions
+                    bool isCodeFile = false;
+                    foreach (string codeExt in codeExtensions)
+                    {
+                        if (ext == codeExt)
+                        {
+                            isCodeFile = true;
+                            break;
+                        }
+                    }
+                    if (!isCodeFile) continue;
+
+                    // Skip very large files (>100KB)
+                    FileInfo fi = new FileInfo(file);
+                    if (fi.Length > 100 * 1024) continue;
+
+                    string rel = file.Substring(WorkDir.Length).TrimStart(Path.DirectorySeparatorChar);
+
+                    try
+                    {
+                        string content = File.ReadAllText(file);
+                        sb.AppendLine("=== FILE: " + rel + " ===");
+                        sb.AppendLine(content);
+                        sb.AppendLine();
+                    }
+                    catch { /* skip unreadable files */ }
+                }
+            }
+            catch { /* non-fatal */ }
+
+            string result = sb.ToString().Trim();
+            return string.IsNullOrEmpty(result) ? "(no readable code files found)" : result;
+        }
+
+        private static string ReadMultiLineInput()
+        {
+            var sb = new StringBuilder();
+            bool firstLine = true;
+            int emptyLineCount = 0;
+
+            while (true)
+            {
+                string line = Console.ReadLine();
+
+                // Single line input: if first line is non-empty and user just presses enter, return it
+                if (firstLine && !string.IsNullOrEmpty(line))
+                {
+                    sb.AppendLine(line);
+                    firstLine = false;
+                    emptyLineCount = 0;
+                    continue;
+                }
+
+                if (firstLine && string.IsNullOrEmpty(line))
+                {
+                    // Empty first line, just return empty
+                    return "";
+                }
+
+                // For multi-line: two consecutive empty lines ends input
+                if (string.IsNullOrEmpty(line))
+                {
+                    emptyLineCount++;
+                    if (emptyLineCount >= 2)
+                    {
+                        // End of input
+                        break;
+                    }
+                    sb.AppendLine(); // preserve single empty line
+                }
+                else
+                {
+                    emptyLineCount = 0;
+                    sb.AppendLine(line);
+                }
+
+                // Show continuation prompt
+                if (!firstLine)
+                {
+                    Console.ForegroundColor = ConsoleColor.DarkGray;
+                    Console.Write("  ...  ");
+                    Console.ResetColor();
+                }
+            }
+
+            return sb.ToString().TrimEnd('\r', '\n', ' ');
+        }
+
         private static void PrintBanner()
         {
             Console.WriteLine("\n  ╔══════════════════════════════════════════════════╗");
-            Console.WriteLine("  ║           GIDE v2.6.0 — .NET 4.8 Edition         ║");
+            Console.WriteLine("  ║           GIDE v2.7.0 — .NET 4.8 Edition         ║");
             Console.WriteLine("  ║  Full logic • Auto overwrite • Project Memory    ║");
-            Console.WriteLine("  ║      Auto-installs Ollama + qwen3:14b            ║");
-            Console.WriteLine("  ╚══════════════════════════════════════════════════╝\n");
+            Console.WriteLine("  ║  Auto file scan • Multi-line paste support       ║");
+            Console.WriteLine("  ╚══════════════════════════════════════════════════╝");
+            Console.WriteLine("  Tip: Paste multiple lines, then press Enter twice to submit.\n");
         }
 
         private static void HandleCommand(string cmd, HistoryManager history, GIDEClient client, ToolExecutor executor)
