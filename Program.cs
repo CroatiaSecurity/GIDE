@@ -84,6 +84,17 @@ namespace GIDE
                     Console.ResetColor();
 
                     string response = client.Generate(history.GetMessages(), systemPrompt);
+                    
+                    // Try to auto-convert markdown code blocks to tool format
+                    string converted = ToolParser.TryConvertMarkdownToTools(response, WorkDir);
+                    if (converted != null)
+                    {
+                        Console.ForegroundColor = ConsoleColor.DarkYellow;
+                        Console.WriteLine("  [Auto-converting markdown to tool format...]");
+                        Console.ResetColor();
+                        response = converted;
+                    }
+                    
                     var tools = ToolParser.Parse(response);
                     string display = ToolParser.StripTools(response);
 
@@ -561,7 +572,7 @@ PROJECT FILES (use these exact paths):
         private static void PrintBanner()
         {
             Console.WriteLine("\n  ╔══════════════════════════════════════════════════╗");
-            Console.WriteLine("  ║           GIDE v3.1.0 — .NET 4.8 Edition         ║");
+            Console.WriteLine("  ║           GIDE v3.2.0 — .NET 4.8 Edition         ║");
             Console.WriteLine("  ║  Full logic • Auto overwrite • Project Memory    ║");
             Console.WriteLine("  ║  Auto file scan • Multi-line paste support       ║");
             Console.WriteLine("  ╚══════════════════════════════════════════════════╝");
