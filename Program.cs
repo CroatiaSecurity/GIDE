@@ -61,7 +61,7 @@ namespace GIDE
                 Console.ForegroundColor = ConsoleColor.Green;
                 Console.Write("  You: ");
                 Console.ResetColor();
-                string input = Console.ReadLine();
+                string input = ReadMultiLineInput();
                 if (string.IsNullOrEmpty(input)) continue;
 
                 if (input.StartsWith("/"))
@@ -134,6 +134,7 @@ namespace GIDE
         {
             string fileTree = GetProjectFileTree();
             string stackInfo = DetectTechStack();
+            string fileContents = ScanAllProjectFiles();
 
             return @"You are GIDE, a coding agent. You write files using tools, not markdown.
 
@@ -202,7 +203,13 @@ PROJECT FILES (use these exact paths):
 
 - If targeting .NET 4.8: No async Main, no record types, no top-level statements, no .NET 6+ APIs.
 - When editing a file, use the EXACT path from PROJECT FILES above.
-- NEVER use markdown. ALWAYS use <<<TOOL:WRITE>>> for any code output.";
+- NEVER use markdown. ALWAYS use <<<TOOL:WRITE>>> for any code output.
+
+=== ALL FILE CONTENTS (PRE-SCANNED) ===
+
+" + fileContents + @"
+
+=== END OF FILE CONTENTS ===";
         }
 
         private static string DetectTechStack()
@@ -394,7 +401,9 @@ PROJECT FILES (use these exact paths):
                 {
                     // Skip hidden/system dirs
                     string name = Path.GetFileName(entry);
-                    if (name.StartsWith(".") || name == "bin" || name == "obj" || name == "node_modules")
+                    string parentDir = Path.GetFileName(Path.GetDirectoryName(entry));
+                    if (name.StartsWith(".") || name == "bin" || name == "obj" || name == "node_modules" ||
+                        parentDir == "bin" || parentDir == "obj" || parentDir == "node_modules")
                         continue;
 
                     string rel = entry.Substring(WorkDir.Length).TrimStart(Path.DirectorySeparatorChar);
@@ -411,13 +420,124 @@ PROJECT FILES (use these exact paths):
             }
         }
 
+        private static string ScanAllProjectFiles()
+        {
+            var sb = new StringBuilder();
+            string[] codeExtensions = new[] { ".cs", ".vb", ".fs", ".py", ".js", ".ts", ".jsx", ".tsx", ".java", ".kt", ".go", ".rs", ".c", ".cpp", ".h", ".hpp", ".rb", ".php", ".swift", ".m", ".mm", ".lua", ".pl", ".sh", ".bat", ".ps1", ".sql", ".html", ".htm", ".css", ".scss", ".sass", ".less", ".json", ".xml", ".yaml", ".yml", ".toml", ".ini", ".cfg", ".conf", ".md", ".txt", ".dockerfile", ".csproj", ".vbproj", ".fsproj", ".sln" };
+
+            try
+            {
+                string[] files = Directory.GetFiles(WorkDir, "*", SearchOption.AllDirectories);
+                Array.Sort(files);
+
+                foreach (string file in files)
+                {
+                    string name = Path.GetFileName(file);
+                    string ext = Path.GetExtension(file).ToLowerInvariant();
+                    string parentDir = Path.GetFileName(Path.GetDirectoryName(file));
+
+                    // Skip hidden, binary, and system directories
+                    if (name.StartsWith(".") || parentDir == "bin" || parentDir == "obj" || 
+                        parentDir == "node_modules" || parentDir == ".git" || parentDir == ".vs" ||
+                        parentDir == "packages" || parentDir == "debug" || parentDir == "release")
+                        continue;
+
+                    // Only include recognized code/text file extensions
+                    bool isCodeFile = false;
+                    foreach (string codeExt in codeExtensions)
+                    {
+                        if (ext == codeExt)
+                        {
+                            isCodeFile = true;
+                            break;
+                        }
+                    }
+                    if (!isCodeFile) continue;
+
+                    // Skip very large files (>100KB)
+                    FileInfo fi = new FileInfo(file);
+                    if (fi.Length > 100 * 1024) continue;
+
+                    string rel = file.Substring(WorkDir.Length).TrimStart(Path.DirectorySeparatorChar);
+
+                    try
+                    {
+                        string content = File.ReadAllText(file);
+                        sb.AppendLine("=== FILE: " + rel + " ===");
+                        sb.AppendLine(content);
+                        sb.AppendLine();
+                    }
+                    catch { /* skip unreadable files */ }
+                }
+            }
+            catch { /* non-fatal */ }
+
+            string result = sb.ToString().Trim();
+            return string.IsNullOrEmpty(result) ? "(no readable code files found)" : result;
+        }
+
+        private static string ReadMultiLineInput()
+        {
+            var sb = new StringBuilder();
+            bool firstLine = true;
+            int emptyLineCount = 0;
+
+            while (true)
+            {
+                string line = Console.ReadLine();
+
+                // Single line input: if first line is non-empty and user just presses enter, return it
+                if (firstLine && !string.IsNullOrEmpty(line))
+                {
+                    sb.AppendLine(line);
+                    firstLine = false;
+                    emptyLineCount = 0;
+                    continue;
+                }
+
+                if (firstLine && string.IsNullOrEmpty(line))
+                {
+                    // Empty first line, just return empty
+                    return "";
+                }
+
+                // For multi-line: two consecutive empty lines ends input
+                if (string.IsNullOrEmpty(line))
+                {
+                    emptyLineCount++;
+                    if (emptyLineCount >= 2)
+                    {
+                        // End of input
+                        break;
+                    }
+                    sb.AppendLine(); // preserve single empty line
+                }
+                else
+                {
+                    emptyLineCount = 0;
+                    sb.AppendLine(line);
+                }
+
+                // Show continuation prompt
+                if (!firstLine)
+                {
+                    Console.ForegroundColor = ConsoleColor.DarkGray;
+                    Console.Write("  ...  ");
+                    Console.ResetColor();
+                }
+            }
+
+            return sb.ToString().TrimEnd('\r', '\n', ' ');
+        }
+
         private static void PrintBanner()
         {
             Console.WriteLine("\n  ╔══════════════════════════════════════════════════╗");
-            Console.WriteLine("  ║           GIDE v2.6.0 — .NET 4.8 Edition         ║");
+            Console.WriteLine("  ║           GIDE v2.7.0 — .NET 4.8 Edition         ║");
             Console.WriteLine("  ║  Full logic • Auto overwrite • Project Memory    ║");
-            Console.WriteLine("  ║      Auto-installs Ollama + qwen3:14b            ║");
-            Console.WriteLine("  ╚══════════════════════════════════════════════════╝\n");
+            Console.WriteLine("  ║  Auto file scan • Multi-line paste support       ║");
+            Console.WriteLine("  ╚══════════════════════════════════════════════════╝");
+            Console.WriteLine("  Tip: Paste multiple lines, then press Enter twice to submit.\n");
         }
 
         private static void HandleCommand(string cmd, HistoryManager history, GIDEClient client, ToolExecutor executor)
