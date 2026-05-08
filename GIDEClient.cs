@@ -45,8 +45,9 @@ namespace GIDE
                            "Or use '/cloud' to switch to cloud mode.";
                 }
 
+                // Lower temperature for better format adherence, increase context window
                 string payload = "{\"model\":\"" + CurrentModel + "\",\"messages\":" + 
-                    SimpleSerialize(messages, systemPrompt) + ",\"stream\":false,\"options\":{\"temperature\":0.6}}";
+                    SimpleSerialize(messages, systemPrompt) + ",\"stream\":false,\"options\":{\"temperature\":0.3,\"num_ctx\":32768,\"num_predict\":8192}}";
 
                 var content = new StringContent(payload, Encoding.UTF8, "application/json");
                 var response = _http.PostAsync("http://localhost:11434/api/chat", content).Result;
