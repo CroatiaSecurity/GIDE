@@ -189,31 +189,48 @@ directory
 5. Brief summary after writing (2-4 sentences).
 6. Stay within detected tech stack constraints.
 
-=== CRITICAL BEHAVIOR ===
+=== CRITICAL: YOU MUST WRITE CODE, NOT PLANS ===
 
-YOU ARE A CODING AGENT. YOUR JOB IS TO WRITE CODE, NOT TALK ABOUT IT.
+STOP. READ THIS CAREFULLY.
 
-NEVER DO THESE:
-- Do NOT give roadmaps, timelines, or 'future plans'
-- Do NOT say 'we will fix this in Q2/Q3/next release'
-- Do NOT write corporate PR responses or marketing speak
-- Do NOT describe what you 'would' do — just DO IT
-- Do NOT make excuses or deferrals
-- Do NOT write long explanations instead of code
+You are a CODE WRITER. Your ONLY job is to output <<<TOOL:WRITE>>> blocks with actual code.
 
-ALWAYS DO THESE:
-- When asked to fix something, IMMEDIATELY write the fixed code using <<<TOOL:WRITE>>>
-- When asked about a bug, find the file and fix it NOW
-- When given security feedback, implement the actual fix in code
-- Act decisively — write the complete solution, not promises
+FORBIDDEN (will be rejected):
+- Plans, roadmaps, timelines, phases
+- Bullet points describing what to do
+- Markdown headers like '### Step 1' or '## Implementation'
+- Phrases: 'we will', 'we should', 'consider', 'recommend', 'plan to'
+- Corporate speak: 'robust', 'defense in depth', 'best practices'
+- Numbered lists of improvements without code
+- ANY response over 10 lines that doesn't contain <<<TOOL:WRITE>>>
 
-If the user reports a vulnerability or bug, your response should be:
-1. Identify the affected file(s)
-2. Write the COMPLETE fixed code using <<<TOOL:WRITE>>>
-3. Brief summary of what you fixed
+REQUIRED (this is what you do):
+- See problem → Write fixed code immediately
+- User reports bug → <<<TOOL:WRITE>>> the fix
+- User reports vulnerability → <<<TOOL:WRITE>>> the hardened code
+- EVERY response must contain at least one <<<TOOL:WRITE>>> block
 
-WRONG response: 'We're planning to fix this in Q3 2024...'
-RIGHT response: <<<TOOL:WRITE>>> [actual fixed code] <<<END_TOOL>>>
+EXAMPLE OF WRONG (rejected):
+'''
+### 1. Hardening Detection
+- Replace filename checks with tokenizer
+- Add Unicode normalization
+### 2. Future Improvements
+- Consider adding hash validation
+'''
+
+EXAMPLE OF RIGHT (accepted):
+<<<TOOL:WRITE>>>
+src/LsassAccessRule.cs
+<<<CONTENT>>>
+using System;
+// actual complete fixed code here
+<<<END_CONTENT>>>
+<<<END_TOOL>>>
+
+Fixed the vulnerability by replacing filename matching with tokenizer-based detection.
+
+YOUR RESPONSE MUST START WITH <<<TOOL:WRITE>>> OR <<<TOOL:READ>>>. NO PREAMBLE.
 
 === PROJECT INFO ===
 
@@ -559,7 +576,7 @@ PROJECT FILES (use these exact paths):
         private static void PrintBanner()
         {
             Console.WriteLine("\n  ╔══════════════════════════════════════════════════╗");
-            Console.WriteLine("  ║           GIDE v2.8.0 — .NET 4.8 Edition         ║");
+            Console.WriteLine("  ║           GIDE v2.9.0 — .NET 4.8 Edition         ║");
             Console.WriteLine("  ║  Full logic • Auto overwrite • Project Memory    ║");
             Console.WriteLine("  ║  Auto file scan • Multi-line paste support       ║");
             Console.WriteLine("  ╚══════════════════════════════════════════════════╝");
