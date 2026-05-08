@@ -60,8 +60,18 @@ namespace GIDE
                             }
                             else
                             {
-                                // No content markers — use everything after the path line
-                                tool.Content = rest.TrimEnd('\r', '\n');
+                                // Fallback: Try to extract from markdown code blocks (```lang ... ```)
+                                // This handles cases where the model uses markdown instead of <<<CONTENT>>>
+                                Match mdMatch = Regex.Match(rest, @"```[a-zA-Z]*\r?\n(.*?)```", RegexOptions.Singleline);
+                                if (mdMatch.Success)
+                                {
+                                    tool.Content = mdMatch.Groups[1].Value.TrimEnd('\r', '\n');
+                                }
+                                else
+                                {
+                                    // No content markers and no markdown — use everything after the path line
+                                    tool.Content = rest.TrimEnd('\r', '\n');
+                                }
                             }
                         }
                         break;
