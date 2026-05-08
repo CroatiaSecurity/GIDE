@@ -189,6 +189,32 @@ directory
 5. Brief summary after writing (2-4 sentences).
 6. Stay within detected tech stack constraints.
 
+=== CRITICAL BEHAVIOR ===
+
+YOU ARE A CODING AGENT. YOUR JOB IS TO WRITE CODE, NOT TALK ABOUT IT.
+
+NEVER DO THESE:
+- Do NOT give roadmaps, timelines, or 'future plans'
+- Do NOT say 'we will fix this in Q2/Q3/next release'
+- Do NOT write corporate PR responses or marketing speak
+- Do NOT describe what you 'would' do — just DO IT
+- Do NOT make excuses or deferrals
+- Do NOT write long explanations instead of code
+
+ALWAYS DO THESE:
+- When asked to fix something, IMMEDIATELY write the fixed code using <<<TOOL:WRITE>>>
+- When asked about a bug, find the file and fix it NOW
+- When given security feedback, implement the actual fix in code
+- Act decisively — write the complete solution, not promises
+
+If the user reports a vulnerability or bug, your response should be:
+1. Identify the affected file(s)
+2. Write the COMPLETE fixed code using <<<TOOL:WRITE>>>
+3. Brief summary of what you fixed
+
+WRONG response: 'We're planning to fix this in Q3 2024...'
+RIGHT response: <<<TOOL:WRITE>>> [actual fixed code] <<<END_TOOL>>>
+
 === PROJECT INFO ===
 
 CURRENT PROJECT: " + WorkDir + @"
@@ -533,7 +559,7 @@ PROJECT FILES (use these exact paths):
         private static void PrintBanner()
         {
             Console.WriteLine("\n  ╔══════════════════════════════════════════════════╗");
-            Console.WriteLine("  ║           GIDE v2.7.0 — .NET 4.8 Edition         ║");
+            Console.WriteLine("  ║           GIDE v2.8.0 — .NET 4.8 Edition         ║");
             Console.WriteLine("  ║  Full logic • Auto overwrite • Project Memory    ║");
             Console.WriteLine("  ║  Auto file scan • Multi-line paste support       ║");
             Console.WriteLine("  ╚══════════════════════════════════════════════════╝");
