@@ -97,6 +97,31 @@ namespace GIDE
 
                     if (tools.Count == 0)
                     {
+                        // Detect if the model output a markdown/planning response instead of tools
+                        bool isMarkdownPlan = response.Contains("###") || 
+                                              response.Contains("## ") ||
+                                              response.Contains("- **") ||
+                                              response.Contains("1. ") ||
+                                              response.Contains("| ") ||
+                                              response.Contains("roadmap") ||
+                                              response.Contains("timeline") ||
+                                              response.Contains("we will") ||
+                                              response.Contains("We will") ||
+                                              response.Contains("consider") ||
+                                              response.Contains("recommend");
+
+                        if (isMarkdownPlan && i < maxIterations - 1)
+                        {
+                            // Force retry with explicit correction
+                            Console.ForegroundColor = ConsoleColor.Red;
+                            Console.WriteLine("\n  [REJECTED: You wrote a plan instead of code. Retrying with correction...]");
+                            Console.ResetColor();
+
+                            history.AddAssistantMessage(response);
+                            history.AddUserMessage("STOP. You just wrote a plan/description instead of code. That is WRONG. You MUST use <<<TOOL:WRITE>>> to write actual code files. Do it NOW. No more explanations - just <<<TOOL:WRITE>>> with the complete fixed code.");
+                            continue; // Retry
+                        }
+
                         if (string.IsNullOrWhiteSpace(display))
                         {
                             Console.ForegroundColor = ConsoleColor.Yellow;
@@ -536,7 +561,7 @@ PROJECT FILES (use these exact paths):
         private static void PrintBanner()
         {
             Console.WriteLine("\n  ╔══════════════════════════════════════════════════╗");
-            Console.WriteLine("  ║           GIDE v3.0.0 — .NET 4.8 Edition         ║");
+            Console.WriteLine("  ║           GIDE v3.1.0 — .NET 4.8 Edition         ║");
             Console.WriteLine("  ║  Full logic • Auto overwrite • Project Memory    ║");
             Console.WriteLine("  ║  Auto file scan • Multi-line paste support       ║");
             Console.WriteLine("  ╚══════════════════════════════════════════════════╝");
