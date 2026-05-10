@@ -2,7 +2,7 @@
 ; Requires InnoSetup 6.x
 
 #define MyAppName "GIDE"
-#define MyAppVersion "0.4.0"
+#define MyAppVersion "0.5.0"
 #define MyAppPublisher "Gorstak"
 #define MyAppURL "https://github.com/CroatiaSecurity/GIDE"
 #define MyAppExeName "GIDE.exe"

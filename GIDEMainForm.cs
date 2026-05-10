@@ -69,13 +69,21 @@ namespace GIDE
             UpdateStatus("Ready");
         }
 
+        protected override void OnHandleCreated(EventArgs e)
+        {
+            base.OnHandleCreated(e);
+            MicaHelper.Apply(this);
+        }
+
         private void InitializeComponent()
         {
             this.Text = "GIDE";
-            this.Size = new Size(1200, 800);
-            this.MinimumSize = new Size(800, 600);
+            this.Size = new Size(1280, 820);
+            this.MinimumSize = new Size(900, 620);
             this.StartPosition = FormStartPosition.CenterScreen;
-            this.BackColor = Color.Black;
+            this.BackColor = Theme.BgDeep;
+            this.Font = Theme.Font(9.5f);
+            this.ForeColor = Theme.Text;
 
             // Set icon from GIDE.ico file
             try
@@ -93,7 +101,7 @@ namespace GIDE
             Panel mainContainer = new Panel
             {
                 Dock = DockStyle.Fill,
-                BackColor = Color.Black,
+                BackColor = Theme.BgDeep,
                 Padding = new Padding(0)
             };
 
@@ -101,86 +109,89 @@ namespace GIDE
             Panel topBar = new Panel
             {
                 Dock = DockStyle.Top,
-                Height = 50,
-                BackColor = Color.Black,
-                Padding = new Padding(20, 10, 20, 10)
+                Height = 64,
+                BackColor = Theme.BgDeep,
+                Padding = new Padding(24, 14, 24, 14)
             };
 
             // Model selector on the right
             modelSelector = new ComboBox
             {
-                Width = 220,
-                Height = 30,
-                Left = topBar.Width - 340, // Make room for download button
-                Top = 10,
+                Width = 240,
+                Height = 36,
+                Left = topBar.Width - 360,
+                Top = 14,
                 Anchor = AnchorStyles.Top | AnchorStyles.Right,
                 FlatStyle = FlatStyle.Flat,
-                BackColor = Color.FromArgb(30, 30, 30),
-                ForeColor = Color.White,
-                Font = new Font("Segoe UI", 10),
+                BackColor = Theme.BgPanel,
+                ForeColor = Theme.Text,
+                Font = Theme.Font(10f),
                 DropDownStyle = ComboBoxStyle.DropDownList
             };
             modelSelector.SelectedIndexChanged += ModelSelector_SelectedIndexChanged;
             topBar.Controls.Add(modelSelector);
 
             // Download button next to model selector
-            Button downloadBtn = new Button
+            RoundedButton downloadBtn = new RoundedButton
             {
                 Text = "Download",
-                Width = 80,
-                Height = 30,
-                Left = topBar.Width - 100,
-                Top = 10,
+                Width = 100,
+                Height = 36,
+                Left = topBar.Width - 110,
+                Top = 14,
                 Anchor = AnchorStyles.Top | AnchorStyles.Right,
-                FlatStyle = FlatStyle.Flat,
-                BackColor = Color.FromArgb(0, 120, 212),
+                BackColor = Theme.Accent,
+                HoverColor = Theme.AccentHi,
+                PressColor = Theme.AccentLo,
                 ForeColor = Color.White,
-                Font = new Font("Segoe UI", 9),
-                Cursor = Cursors.Hand
+                Font = Theme.Font(9.5f, FontStyle.Bold),
+                Radius = 12
             };
-            downloadBtn.FlatAppearance.BorderSize = 0;
             downloadBtn.Click += DownloadBtn_Click;
             topBar.Controls.Add(downloadBtn);
 
             // Project button on the left - toggles sidebar
-            Button toggleProjectBtn = new Button
+            RoundedButton toggleProjectBtn = new RoundedButton
             {
                 Text = "Folder",
-                Width = 80,
-                Height = 30,
-                Left = 20,
-                Top = 10,
-                FlatStyle = FlatStyle.Flat,
-                BackColor = Color.FromArgb(30, 30, 30),
-                ForeColor = Color.White,
-                Font = new Font("Segoe UI", 9),
-                Cursor = Cursors.Hand
+                Width = 90,
+                Height = 36,
+                Left = 24,
+                Top = 14,
+                BackColor = Theme.BgPanel,
+                HoverColor = Theme.BgPanelHi,
+                PressColor = Theme.BgMid,
+                ForeColor = Theme.Text,
+                BorderColor = Theme.Border,
+                BorderWidth = 1,
+                Font = Theme.Font(9.5f),
+                Radius = 12
             };
-            toggleProjectBtn.FlatAppearance.BorderSize = 0;
             toggleProjectBtn.Click += (s, e) => {
                 projectPanel.Visible = !projectPanel.Visible;
                 toggleProjectBtn.Text = projectPanel.Visible ? "Close" : "Folder";
-                // Force layout refresh
                 this.PerformLayout();
                 mainContainer.Invalidate();
             };
             topBar.Controls.Add(toggleProjectBtn);
 
             // New Chat button
-            newChatButton = new Button
+            newChatButton = new RoundedButton
             {
                 Text = "New Chat",
-                Width = 90,
-                Height = 30,
-                Left = 110,
-                Top = 10,
-                FlatStyle = FlatStyle.Flat,
-                BackColor = Color.FromArgb(30, 30, 30),
-                ForeColor = Color.White,
-                Font = new Font("Segoe UI", 9),
-                Cursor = Cursors.Hand
+                Width = 100,
+                Height = 36,
+                Left = 124,
+                Top = 14,
+                BackColor = Theme.BgPanel,
+                HoverColor = Theme.BgPanelHi,
+                PressColor = Theme.BgMid,
+                ForeColor = Theme.Text,
+                BorderColor = Theme.Border,
+                BorderWidth = 1,
+                Font = Theme.Font(9.5f),
+                Radius = 12
             };
-            newChatButton.FlatAppearance.BorderSize = 0;
             newChatButton.Click += NewChatButton_Click;
             topBar.Controls.Add(newChatButton);
 
@@ -188,15 +199,15 @@ namespace GIDE
             centerArea = new Panel
             {
                 Dock = DockStyle.Fill,
-                BackColor = Color.Black
+                BackColor = Theme.BgDeep
             };
 
             // Welcome label
             Label welcomeLabel = new Label
             {
                 Text = "How can I help you today?",
-                Font = new Font("Segoe UI", 28, FontStyle.Regular),
-                ForeColor = Color.White,
+                Font = Theme.Font(30f, FontStyle.Regular),
+                ForeColor = Theme.Text,
                 AutoSize = true,
                 Top = 150,
                 Left = (centerArea.Width - 400) / 2
@@ -207,13 +218,16 @@ namespace GIDE
             };
 
             // === BIG CENTERED INPUT BOX ===
-            Panel inputWrapper = new Panel
+            RoundedPanel inputWrapper = new RoundedPanel
             {
-                Width = 800,
-                Height = 130,
-                Top = 250,
-                BackColor = Color.FromArgb(40, 40, 40),
-                BorderStyle = BorderStyle.None
+                Width = 820,
+                Height = 140,
+                Top = 260,
+                BackColor = Theme.BgPanel,
+                BorderColor = Theme.Border,
+                BorderWidth = 1,
+                Radius = 18,
+                Padding = new Padding(18, 14, 18, 14)
             };
             inputWrapper.Left = (centerArea.Width - inputWrapper.Width) / 2;
             inputWrapper.Anchor = AnchorStyles.Top;
@@ -221,83 +235,70 @@ namespace GIDE
                 inputWrapper.Left = (centerArea.Width - inputWrapper.Width) / 2;
             };
 
-            // Rounded corners effect using padding
-            inputWrapper.Padding = new Padding(2);
-
-            // Inner container
-            Panel inputInner = new Panel
-            {
-                Dock = DockStyle.Fill,
-                BackColor = Color.FromArgb(50, 50, 50),
-                Padding = new Padding(15)
-            };
-
             // Input textbox
             inputBox = new TextBox
             {
                 Dock = DockStyle.Fill,
                 Multiline = true,
-                BackColor = Color.FromArgb(50, 50, 50),
-                ForeColor = Color.FromArgb(180, 180, 180),
-                Font = new Font("Segoe UI", 14),
+                BackColor = Theme.BgPanel,
+                ForeColor = Theme.TextDim,
+                Font = Theme.Font(13f),
                 BorderStyle = BorderStyle.None,
-                Text = "Type a message...",
+                Text = "Ask GIDE anything...",
                 AcceptsReturn = true
             };
             inputBox.GotFocus += (s, e) => {
-                if (inputBox.Text == "Type a message...")
+                if (inputBox.Text == "Ask GIDE anything...")
                 {
                     inputBox.Text = "";
-                    inputBox.ForeColor = Color.White;
+                    inputBox.ForeColor = Theme.Text;
                 }
             };
             inputBox.LostFocus += (s, e) => {
                 if (string.IsNullOrWhiteSpace(inputBox.Text))
                 {
-                    inputBox.Text = "Type a message...";
-                    inputBox.ForeColor = Color.FromArgb(180, 180, 180);
+                    inputBox.Text = "Ask GIDE anything...";
+                    inputBox.ForeColor = Theme.TextDim;
                 }
             };
             inputBox.KeyDown += InputBox_KeyDown;
 
-            // Bottom row with icons and send button
+            // Bottom row with send button
             Panel bottomRow = new Panel
             {
                 Dock = DockStyle.Bottom,
-                Height = 40,
-                BackColor = Color.FromArgb(50, 50, 50),
-                Padding = new Padding(0, 5, 0, 0)
+                Height = 44,
+                BackColor = Theme.BgPanel,
+                Padding = new Padding(0, 6, 0, 0)
             };
 
             // Send button (right side)
-            sendButton = new Button
+            sendButton = new RoundedButton
             {
                 Text = "Send",
-                Width = 80,
-                Height = 32,
+                Width = 96,
+                Height = 36,
                 Dock = DockStyle.Right,
-                FlatStyle = FlatStyle.Flat,
-                BackColor = Color.White,
-                ForeColor = Color.Black,
-                Font = new Font("Segoe UI", 10, FontStyle.Bold),
-                Cursor = Cursors.Hand,
-                Margin = new Padding(0, 0, 0, 0)
+                BackColor = Theme.Accent,
+                HoverColor = Theme.AccentHi,
+                PressColor = Theme.AccentLo,
+                ForeColor = Color.White,
+                Font = Theme.Font(10f, FontStyle.Bold),
+                Radius = 12
             };
-            sendButton.FlatAppearance.BorderSize = 0;
             sendButton.Click += SendButton_Click;
 
             bottomRow.Controls.Add(sendButton);
 
-            inputInner.Controls.Add(inputBox);
-            inputInner.Controls.Add(bottomRow);
-            inputWrapper.Controls.Add(inputInner);
+            inputWrapper.Controls.Add(inputBox);
+            inputWrapper.Controls.Add(bottomRow);
 
             // === ACTION BUTTONS ===
             FlowLayoutPanel actionPanel = new FlowLayoutPanel
             {
-                Top = 400,
-                Height = 40,
-                BackColor = Color.Black,
+                Top = 420,
+                Height = 44,
+                BackColor = Theme.BgDeep,
                 AutoSize = true,
                 FlowDirection = FlowDirection.LeftToRight,
                 WrapContents = false
@@ -307,36 +308,36 @@ namespace GIDE
                 actionPanel.Left = (centerArea.Width - actionPanel.Width) / 2;
             };
 
-            // Action buttons
+            // Action chips (pill-shaped)
             string[] actions = { "Help me write", "Learn about", "Analyze code", "Summarize", "See more" };
             foreach (var action in actions)
             {
-                Button btn = new Button
+                var capture = action;
+                RoundedButton btn = new RoundedButton
                 {
                     Text = action,
-                    Width = 110,
-                    Height = 32,
-                    FlatStyle = FlatStyle.Flat,
-                    BackColor = Color.FromArgb(30, 30, 30),
-                    ForeColor = Color.FromArgb(180, 180, 180),
-                    Font = new Font("Segoe UI", 9),
-                    Cursor = Cursors.Hand,
-                    Margin = new Padding(5)
+                    Width = 120,
+                    Height = 36,
+                    BackColor = Theme.BgPanel,
+                    HoverColor = Theme.BgPanelHi,
+                    PressColor = Theme.BgMid,
+                    ForeColor = Theme.TextDim,
+                    BorderColor = Theme.Border,
+                    BorderWidth = 1,
+                    Font = Theme.Font(9.5f),
+                    Radius = 18,
+                    Margin = new Padding(6)
                 };
-                btn.FlatAppearance.BorderColor = Color.FromArgb(60, 60, 60);
-                btn.FlatAppearance.BorderSize = 1;
-                btn.MouseEnter += (s, e) => btn.BackColor = Color.FromArgb(50, 50, 50);
-                btn.MouseLeave += (s, e) => btn.BackColor = Color.FromArgb(30, 30, 30);
                 btn.Click += (s, e) => {
-                    if (action == "Help me write")
+                    if (capture == "Help me write")
                         inputBox.Text = "Help me write ";
-                    else if (action == "Learn about")
+                    else if (capture == "Learn about")
                         inputBox.Text = "I want to learn about ";
-                    else if (action == "Analyze code")
+                    else if (capture == "Analyze code")
                         inputBox.Text = "Please analyze this code:\n\n";
-                    else if (action == "Summarize")
+                    else if (capture == "Summarize")
                         inputBox.Text = "Please summarize ";
-                    inputBox.ForeColor = Color.White;
+                    inputBox.ForeColor = Theme.Text;
                     inputBox.Focus();
                 };
                 actionPanel.Controls.Add(btn);
@@ -345,13 +346,13 @@ namespace GIDE
             // === CHAT HISTORY (Centered, shown above input after first message) ===
             chatHistory = new RichTextBox
             {
-                Width = 800,
+                Width = 820,
                 Height = 200,
-                Top = 60,
-                BackColor = Color.Black,
-                ForeColor = Color.White,
+                Top = 80,
+                BackColor = Theme.BgDeep,
+                ForeColor = Theme.Text,
                 BorderStyle = BorderStyle.None,
-                Font = new Font("Segoe UI", 12),
+                Font = Theme.Font(11.5f),
                 ReadOnly = true,
                 Visible = false
             };
@@ -359,8 +360,7 @@ namespace GIDE
             chatHistory.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
             centerArea.Resize += (s, e) => {
                 chatHistory.Left = (centerArea.Width - chatHistory.Width) / 2;
-                // Resize chatHistory to fill space above inputWrapper
-                int availableHeight = inputWrapper.Top - chatHistory.Top - 20;
+                int availableHeight = inputWrapper.Top - chatHistory.Top - 24;
                 if (availableHeight > 50)
                     chatHistory.Height = availableHeight;
             };
@@ -377,8 +377,8 @@ namespace GIDE
             statusPanel = new Panel
             {
                 Dock = DockStyle.Bottom,
-                Height = 28,
-                BackColor = Color.FromArgb(20, 20, 20)
+                Height = 30,
+                BackColor = Theme.BgStatus
             };
 
             // Progress fill panel (fills from left to right)
@@ -386,18 +386,18 @@ namespace GIDE
             {
                 Dock = DockStyle.Left,
                 Width = 0,
-                Height = 28,
-                BackColor = Color.FromArgb(0, 120, 212) // Blue fill
+                Height = 30,
+                BackColor = Theme.Accent
             };
 
-            // Status text with percentage
+            // Status text
             statusLabel = new Label
             {
                 Text = "Ready",
                 Dock = DockStyle.Fill,
-                ForeColor = Color.White,
-                Font = new Font("Segoe UI", 9),
-                Padding = new Padding(10, 5, 10, 0),
+                ForeColor = Theme.TextDim,
+                Font = Theme.Font(9f),
+                Padding = new Padding(14, 6, 10, 0),
                 BackColor = Color.Transparent
             };
 
@@ -406,10 +406,10 @@ namespace GIDE
             {
                 Text = "",
                 Dock = DockStyle.Right,
-                Width = 60,
-                ForeColor = Color.White,
-                Font = new Font("Segoe UI", 9, FontStyle.Bold),
-                Padding = new Padding(0, 5, 10, 0),
+                Width = 70,
+                ForeColor = Theme.Text,
+                Font = Theme.Font(9f, FontStyle.Bold),
+                Padding = new Padding(0, 6, 14, 0),
                 TextAlign = ContentAlignment.MiddleRight,
                 BackColor = Color.Transparent,
                 Visible = false
@@ -424,45 +424,50 @@ namespace GIDE
             projectPanel = new Panel
             {
                 Dock = DockStyle.Left,
-                Width = 250,
-                BackColor = Color.FromArgb(25, 25, 25),
+                Width = 270,
+                BackColor = Theme.BgMid,
+                Padding = new Padding(12, 12, 12, 12),
                 Visible = false
             };
 
             // Open Folder button at top of sidebar
-            Button openFolderBtn = new Button
+            RoundedButton openFolderBtn = new RoundedButton
             {
                 Dock = DockStyle.Top,
                 Height = 40,
                 Text = "Open Folder",
-                FlatStyle = FlatStyle.Flat,
-                BackColor = Color.FromArgb(40, 40, 40),
-                ForeColor = Color.White,
-                Font = new Font("Segoe UI", 10),
-                Cursor = Cursors.Hand,
-                Margin = new Padding(10)
+                BackColor = Theme.BgPanel,
+                HoverColor = Theme.BgPanelHi,
+                PressColor = Theme.BgMid,
+                ForeColor = Theme.Text,
+                BorderColor = Theme.Border,
+                BorderWidth = 1,
+                Font = Theme.Font(10f),
+                Radius = 12,
+                Margin = new Padding(0, 0, 0, 8)
             };
-            openFolderBtn.FlatAppearance.BorderSize = 0;
             openFolderBtn.Click += ProjectButton_Click;
 
             projectPathLabel = new Label
             {
                 Dock = DockStyle.Top,
-                Height = 30,
+                Height = 32,
                 Text = "No folder selected",
-                ForeColor = Color.Gray,
-                BackColor = Color.FromArgb(25, 25, 25),
-                Padding = new Padding(10)
+                ForeColor = Theme.TextFaint,
+                BackColor = Theme.BgMid,
+                Padding = new Padding(4, 8, 4, 4),
+                Font = Theme.Font(8.5f)
             };
 
             projectTree = new TreeView
             {
                 Dock = DockStyle.Fill,
-                BackColor = Color.FromArgb(25, 25, 25),
-                ForeColor = Color.White,
+                BackColor = Theme.BgMid,
+                ForeColor = Theme.Text,
                 BorderStyle = BorderStyle.None,
                 ShowLines = false,
                 ShowPlusMinus = true,
+                Font = Theme.Font(9.5f),
                 ImageList = CreateFileIcons()
             };
             projectTree.BeforeExpand += ProjectTree_BeforeExpand;
@@ -489,8 +494,10 @@ namespace GIDE
         private void CreateMenu()
         {
             MenuStrip menuStrip = new MenuStrip();
-            menuStrip.BackColor = Color.FromArgb(37, 37, 38);
-            menuStrip.ForeColor = Color.LightGray;
+            menuStrip.BackColor = Theme.BgDeep;
+            menuStrip.ForeColor = Theme.TextDim;
+            menuStrip.Renderer = new ToolStripProfessionalRenderer(new GideMenuColors());
+            menuStrip.Font = Theme.Font(9f);
 
             ToolStripMenuItem fileMenu = new ToolStripMenuItem("File");
             fileMenu.DropDownItems.Add("Open Folder...", null, ProjectButton_Click);
@@ -505,7 +512,7 @@ namespace GIDE
             ToolStripMenuItem helpMenu = new ToolStripMenuItem("Help");
             helpMenu.DropDownItems.Add("About GIDE", null, (s, e) =>
             {
-                MessageBox.Show("GIDE v0.4.0 - Free Local AI Coding Assistant\n\n" +
+                MessageBox.Show("GIDE v0.5.0 - Free Local AI Coding Assistant\n\n" +
                     "100% Free • No API Keys • Local Processing\n\n" +
                     "Uses Qwen3 models via llama.cpp",
                     "About GIDE", MessageBoxButtons.OK, MessageBoxIcon.Information);
@@ -521,7 +528,25 @@ namespace GIDE
 
         private void ApplyTheme()
         {
-            this.BackColor = Color.FromArgb(25, 25, 25);
+            this.BackColor = Theme.BgDeep;
+        }
+
+        // Custom dark + purple color table for the menu strip
+        private class GideMenuColors : ProfessionalColorTable
+        {
+            public override Color MenuItemSelected { get { return Theme.BgPanelHi; } }
+            public override Color MenuItemSelectedGradientBegin { get { return Theme.BgPanelHi; } }
+            public override Color MenuItemSelectedGradientEnd { get { return Theme.BgPanelHi; } }
+            public override Color MenuItemBorder { get { return Theme.Border; } }
+            public override Color MenuItemPressedGradientBegin { get { return Theme.BgPanel; } }
+            public override Color MenuItemPressedGradientEnd { get { return Theme.BgPanel; } }
+            public override Color MenuBorder { get { return Theme.Border; } }
+            public override Color ToolStripDropDownBackground { get { return Theme.BgPanel; } }
+            public override Color ImageMarginGradientBegin { get { return Theme.BgPanel; } }
+            public override Color ImageMarginGradientMiddle { get { return Theme.BgPanel; } }
+            public override Color ImageMarginGradientEnd { get { return Theme.BgPanel; } }
+            public override Color SeparatorDark { get { return Theme.Border; } }
+            public override Color SeparatorLight { get { return Theme.Border; } }
         }
 
         private ImageList CreateFileIcons()
@@ -1009,12 +1034,12 @@ namespace GIDE
 
             if (_client == null)
             {
-                AddMessage("Error", "Client not initialized", Color.Red);
+                AddMessage("Error", "Client not initialized", Theme.ErrorBubble);
                 return;
             }
 
             inputBox.Clear();
-            AddMessage("You", message, Color.FromArgb(0, 122, 204));
+            AddMessage("You", message, Theme.UserBubble);
 
             _isProcessing = true;
             sendButton.Enabled = false;
@@ -1030,7 +1055,7 @@ namespace GIDE
                     {
                         this.Invoke(new Action(() =>
                         {
-                            AddMessage("Error", "Client not initialized", Color.Red);
+                            AddMessage("Error", "Client not initialized", Theme.ErrorBubble);
                             UpdateStatus("Error: Client not initialized");
                         }));
                         return;
@@ -1058,7 +1083,7 @@ namespace GIDE
                         this.Invoke(new Action(() =>
                         {
                             ShowChatInline();
-                            AddMessage("Error", "Model engine failed:\n" + errorMsg + "\n\nModel: " + selectedModel.Id + "\nPath: " + ModelManager.GetModelPath(selectedModel.Id), Color.Red);
+                            AddMessage("Error", "Model engine failed:\n" + errorMsg + "\n\nModel: " + selectedModel.Id + "\nPath: " + ModelManager.GetModelPath(selectedModel.Id), Theme.ErrorBubble);
                             UpdateStatus("Error - see chat for details");
                         }));
                         return;
@@ -1090,12 +1115,12 @@ namespace GIDE
                         if (string.IsNullOrEmpty(response))
                         {
                             hadError = true;
-                            AddMessage("Error", "Model returned empty response. Check if model file exists and server is running.", Color.Red);
+                            AddMessage("Error", "Model returned empty response. Check if model file exists and server is running.", Theme.ErrorBubble);
                             UpdateStatus("Empty response - model not working");
                         }
                         else
                         {
-                            AddMessage("GIDE", response, Color.FromArgb(100, 200, 120));
+                            AddMessage("GIDE", response, Theme.AiBubble);
                             UpdateStatus("Ready");
                         }
                     }));
@@ -1105,7 +1130,7 @@ namespace GIDE
                     hadError = true;
                     this.Invoke(new Action(() =>
                     {
-                        AddMessage("Error", "Exception: " + ex.Message + "\n\nStack: " + ex.StackTrace, Color.Red);
+                        AddMessage("Error", "Exception: " + ex.Message + "\n\nStack: " + ex.StackTrace, Theme.ErrorBubble);
                         UpdateStatus("Error: " + ex.Message);
                     }));
                 }
@@ -1188,12 +1213,12 @@ namespace GIDE
 
             // Sender name
             chatHistory.SelectionColor = color;
-            chatHistory.SelectionFont = new Font("Segoe UI", 9, FontStyle.Bold);
+            chatHistory.SelectionFont = Theme.Font(10f, FontStyle.Bold);
             chatHistory.AppendText(sender + "\n");
 
             // Message
-            chatHistory.SelectionColor = Color.LightGray;
-            chatHistory.SelectionFont = new Font("Consolas", 10);
+            chatHistory.SelectionColor = Theme.Text;
+            chatHistory.SelectionFont = Theme.FontMono(10.5f);
             chatHistory.AppendText(message + "\n\n");
 
             chatHistory.ScrollToCaret();
@@ -1240,6 +1265,9 @@ namespace GIDE
                     return;
                 }
             }
+
+            if (_client != null)
+                _client.Shutdown();
 
             base.OnFormClosing(e);
         }

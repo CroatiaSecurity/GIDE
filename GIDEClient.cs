@@ -158,6 +158,15 @@ namespace GIDE
             Console.WriteLine("  Context length: " + _modelRecommendation.ContextLength + " tokens");
             Console.WriteLine("  Engine: " + (_localEngine != null ? "Running" : "Not initialized"));
         }
+
+        public void Shutdown()
+        {
+            if (_localEngine != null)
+            {
+                _localEngine.Shutdown();
+                _localEngine = null;
+            }
+        }
     }
 
     public class ChatMessage

@@ -8,7 +8,7 @@ echo ================================================
 echo.
 
 set CSC="C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe"
-set VERSION=0.4.0
+set VERSION=0.5.0
 set OUTPUT=dist\GIDE.exe
 
 if not exist %CSC% (
@@ -39,6 +39,7 @@ echo [+] Compiling GIDE.exe...
     HardwareDetector.cs ^
     ModelManager.cs ^
     LocalModelEngine.cs ^
+    UI.cs ^
     GIDESettingsForm.cs ^
     GIDEMainForm.cs
 

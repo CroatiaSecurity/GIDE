@@ -7,7 +7,7 @@ namespace GIDE
 {
     /// <summary>
     /// Legacy installer - kept for backwards compatibility.
-    /// GIDE v0.4.0+ uses LocalModelEngine which is self-contained.
+    /// GIDE v0.5.0+ uses LocalModelEngine which is self-contained.
     /// </summary>
     public static class Installer
     {

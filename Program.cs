@@ -591,7 +591,7 @@ PROJECT FILES (use these exact paths):
         private static void PrintBanner()
         {
             Console.WriteLine("\n  ╔══════════════════════════════════════════════════╗");
-            Console.WriteLine("  ║           GIDE v0.4.0 — Completely Free          ║");
+            Console.WriteLine("  ║           GIDE v0.5.0 — Completely Free          ║");
             Console.WriteLine("  ║  No API keys • No usage limits • 100% Private    ║");
             Console.WriteLine("  ║  Local AI • Auto hardware detect • Free models   ║");
             Console.WriteLine("  ╚══════════════════════════════════════════════════╝");
