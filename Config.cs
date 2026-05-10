@@ -7,7 +7,7 @@ namespace GIDE
 {
     /// <summary>
     /// Configuration manager - kept for future settings.
-    /// GIDE v0.3.0+ is local-only, no API keys needed.
+    /// GIDE v0.4.0+ is local-only, no API keys needed.
     /// </summary>
     public static class Config
     {

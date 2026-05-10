@@ -35,7 +35,7 @@ GIDE runs entirely on your machine using [llama.cpp](https://github.com/ggml-org
 ## Installation
 
 ### Option A — Installer (recommended)
-Download `GIDE-Setup-0.4.0.exe` from the [releases page](https://github.com/tandrlemandrle/GIDE/releases) and run it.
+Download `GIDE-Setup-0.4.0.exe` from the [releases page](https://github.com/CroatiaSecurity/GIDE/releases) and run it.
 
 The installer:
 - Installs GIDE to `Program Files\GIDE`
@@ -44,7 +44,7 @@ The installer:
 
 ### Option B — Build from source
 ```
-git clone https://github.com/tandrlemandrle/GIDE
+git clone https://github.com/CroatiaSecurity/GIDE
 cd GIDE
 build.cmd
 ```

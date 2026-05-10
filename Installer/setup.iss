@@ -4,7 +4,7 @@
 #define MyAppName "GIDE"
 #define MyAppVersion "0.4.0"
 #define MyAppPublisher "Gorstak"
-#define MyAppURL "https://github.com/tandrlemandrle/GIDE"
+#define MyAppURL "https://github.com/CroatiaSecurity/GIDE"
 #define MyAppExeName "GIDE.exe"
 
 [Setup]

@@ -18,7 +18,7 @@ namespace GIDE
         private Process _serverProcess;
         private string _modelsDir;
         private string _binDir;
-        private int _port = 11500;  // Different from Ollama's 11434
+        private int _port = 11500;  // Default port, auto-detected if in use
         private bool _isInitialized = false;
         private string _currentModelPath = null;
 
