@@ -56,6 +56,75 @@ namespace GIDE
     }
 
     /// <summary>
+    /// A panel that paints a smooth vertical (or diagonal) gradient background.
+    /// Used as the root background instead of a flat color for visual depth.
+    /// </summary>
+    public class GradientPanel : Panel
+    {
+        public Color GradientTop    { get; set; }
+        public Color GradientBottom { get; set; }
+        public float Angle          { get; set; }
+        public bool  ShowGlow       { get; set; }
+
+        public GradientPanel()
+        {
+            SetStyle(ControlStyles.AllPaintingInWmPaint
+                   | ControlStyles.OptimizedDoubleBuffer
+                   | ControlStyles.UserPaint
+                   | ControlStyles.ResizeRedraw
+                   | ControlStyles.SupportsTransparentBackColor, true);
+            DoubleBuffered  = true;
+            BackColor       = Theme.BgDeep;
+            GradientTop     = Theme.BgDeep;
+            GradientBottom  = Theme.BgMid;
+            Angle           = 90f;
+            ShowGlow        = true;
+        }
+
+        protected override void OnPaintBackground(PaintEventArgs e)
+        {
+            if (Width <= 0 || Height <= 0) return;
+            using (var brush = new LinearGradientBrush(ClientRectangle, GradientTop, GradientBottom, Angle))
+            {
+                e.Graphics.FillRectangle(brush, ClientRectangle);
+            }
+            PaintAmbientGlow(e.Graphics);
+        }
+
+        protected override void OnPaint(PaintEventArgs e)
+        {
+            // Background-only panel
+        }
+
+        // Subtle radial-style glow centered roughly where the input card will sit.
+        // Gives the form an atmospheric "spotlight" feel without needing real Mica.
+        private void PaintAmbientGlow(Graphics g)
+        {
+            if (!ShowGlow) return;
+            try
+            {
+                g.SmoothingMode = SmoothingMode.HighQuality;
+                int cx = Width / 2;
+                int cy = (int)(Height * 0.45f);
+                int r  = (int)(Math.Max(Width, Height) * 0.55f);
+
+                using (var path = new GraphicsPath())
+                {
+                    path.AddEllipse(cx - r, cy - r, r * 2, r * 2);
+                    using (var pgb = new PathGradientBrush(path))
+                    {
+                        pgb.CenterColor = Color.FromArgb(50, 138, 92, 215);
+                        pgb.SurroundColors = new[] { Color.FromArgb(0, 14, 10, 20) };
+                        pgb.CenterPoint = new PointF(cx, cy);
+                        g.FillPath(pgb, path);
+                    }
+                }
+            }
+            catch { }
+        }
+    }
+
+    /// <summary>
     /// Helper to draw rounded rectangles.
     /// </summary>
     public static class RoundedDraw

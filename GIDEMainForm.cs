@@ -97,11 +97,13 @@ namespace GIDE
             }
             catch { }
 
-            // Main container - everything centered
-            Panel mainContainer = new Panel
+            // Main container - gradient background with ambient glow
+            GradientPanel mainContainer = new GradientPanel
             {
                 Dock = DockStyle.Fill,
-                BackColor = Theme.BgDeep,
+                GradientTop = Color.FromArgb(18, 12, 26),
+                GradientBottom = Color.FromArgb(10, 7, 16),
+                ShowGlow = true,
                 Padding = new Padding(0)
             };
 
@@ -110,7 +112,7 @@ namespace GIDE
             {
                 Dock = DockStyle.Top,
                 Height = 64,
-                BackColor = Theme.BgDeep,
+                BackColor = Color.Transparent,
                 Padding = new Padding(24, 14, 24, 14)
             };
 
@@ -199,35 +201,52 @@ namespace GIDE
             centerArea = new Panel
             {
                 Dock = DockStyle.Fill,
-                BackColor = Theme.BgDeep
+                BackColor = Color.Transparent
             };
 
             // Welcome label
             Label welcomeLabel = new Label
             {
                 Text = "How can I help you today?",
-                Font = Theme.Font(30f, FontStyle.Regular),
+                Font = Theme.Font(32f, FontStyle.Regular),
                 ForeColor = Theme.Text,
+                BackColor = Color.Transparent,
+                AutoSize = true,
+                Top = 90,
+                Left = (centerArea.Width - 400) / 2
+            };
+            welcomeLabel.Anchor = AnchorStyles.Top;
+
+            // Subtitle
+            Label subtitleLabel = new Label
+            {
+                Text = "Free local AI · No API keys · Runs on your machine",
+                Font = Theme.Font(10.5f, FontStyle.Regular),
+                ForeColor = Theme.TextFaint,
+                BackColor = Color.Transparent,
                 AutoSize = true,
                 Top = 150,
                 Left = (centerArea.Width - 400) / 2
             };
-            welcomeLabel.Anchor = AnchorStyles.Top;
+            subtitleLabel.Anchor = AnchorStyles.Top;
+            subtitleLabel.Tag = "subtitle";
+
             centerArea.Resize += (s, e) => {
                 welcomeLabel.Left = (centerArea.Width - welcomeLabel.Width) / 2;
+                subtitleLabel.Left = (centerArea.Width - subtitleLabel.Width) / 2;
             };
 
             // === BIG CENTERED INPUT BOX ===
             RoundedPanel inputWrapper = new RoundedPanel
             {
-                Width = 820,
-                Height = 140,
-                Top = 260,
-                BackColor = Theme.BgPanel,
-                BorderColor = Theme.Border,
+                Width = 760,
+                Height = 150,
+                Top = 210,
+                BackColor = Color.FromArgb(38, 26, 56),
+                BorderColor = Color.FromArgb(80, 55, 110),
                 BorderWidth = 1,
-                Radius = 18,
-                Padding = new Padding(18, 14, 18, 14)
+                Radius = 20,
+                Padding = new Padding(20, 16, 20, 16)
             };
             inputWrapper.Left = (centerArea.Width - inputWrapper.Width) / 2;
             inputWrapper.Anchor = AnchorStyles.Top;
@@ -240,7 +259,7 @@ namespace GIDE
             {
                 Dock = DockStyle.Fill,
                 Multiline = true,
-                BackColor = Theme.BgPanel,
+                BackColor = Color.FromArgb(38, 26, 56),
                 ForeColor = Theme.TextDim,
                 Font = Theme.Font(13f),
                 BorderStyle = BorderStyle.None,
@@ -268,7 +287,7 @@ namespace GIDE
             {
                 Dock = DockStyle.Bottom,
                 Height = 44,
-                BackColor = Theme.BgPanel,
+                BackColor = Color.FromArgb(38, 26, 56),
                 Padding = new Padding(0, 6, 0, 0)
             };
 
@@ -296,9 +315,9 @@ namespace GIDE
             // === ACTION BUTTONS ===
             FlowLayoutPanel actionPanel = new FlowLayoutPanel
             {
-                Top = 420,
+                Top = 380,
                 Height = 44,
-                BackColor = Theme.BgDeep,
+                BackColor = Color.Transparent,
                 AutoSize = true,
                 FlowDirection = FlowDirection.LeftToRight,
                 WrapContents = false
@@ -308,7 +327,7 @@ namespace GIDE
                 actionPanel.Left = (centerArea.Width - actionPanel.Width) / 2;
             };
 
-            // Action chips (pill-shaped)
+            // Action chips (pill-shaped, borderless)
             string[] actions = { "Help me write", "Learn about", "Analyze code", "Summarize", "See more" };
             foreach (var action in actions)
             {
@@ -318,12 +337,10 @@ namespace GIDE
                     Text = action,
                     Width = 120,
                     Height = 36,
-                    BackColor = Theme.BgPanel,
-                    HoverColor = Theme.BgPanelHi,
+                    BackColor = Color.FromArgb(40, 28, 60),
+                    HoverColor = Color.FromArgb(60, 42, 88),
                     PressColor = Theme.BgMid,
                     ForeColor = Theme.TextDim,
-                    BorderColor = Theme.Border,
-                    BorderWidth = 1,
                     Font = Theme.Font(9.5f),
                     Radius = 18,
                     Margin = new Padding(6)
@@ -346,10 +363,10 @@ namespace GIDE
             // === CHAT HISTORY (Centered, shown above input after first message) ===
             chatHistory = new RichTextBox
             {
-                Width = 820,
+                Width = 760,
                 Height = 200,
                 Top = 80,
-                BackColor = Theme.BgDeep,
+                BackColor = Color.FromArgb(14, 10, 22),
                 ForeColor = Theme.Text,
                 BorderStyle = BorderStyle.None,
                 Font = Theme.Font(11.5f),
@@ -368,6 +385,7 @@ namespace GIDE
             centerArea.Controls.Add(chatHistory);
             centerArea.Controls.Add(actionPanel);
             centerArea.Controls.Add(inputWrapper);
+            centerArea.Controls.Add(subtitleLabel);
             centerArea.Controls.Add(welcomeLabel);
 
             // Tag welcome label for later access
@@ -377,8 +395,8 @@ namespace GIDE
             statusPanel = new Panel
             {
                 Dock = DockStyle.Bottom,
-                Height = 30,
-                BackColor = Theme.BgStatus
+                Height = 32,
+                BackColor = Color.FromArgb(12, 8, 18)
             };
 
             // Progress fill panel (fills from left to right)
@@ -1181,10 +1199,10 @@ namespace GIDE
 
         private void ShowChatInline()
         {
-            // Hide welcome label and action panel; show chat history above input
+            // Hide welcome label, subtitle, and action panel; show chat history above input
             foreach (Control c in centerArea.Controls)
             {
-                if (c is Label && (c.Tag as string) == "welcome")
+                if (c is Label && ((c.Tag as string) == "welcome" || (c.Tag as string) == "subtitle"))
                     c.Visible = false;
                 else if (c is FlowLayoutPanel)
                     c.Visible = false;
@@ -1194,7 +1212,7 @@ namespace GIDE
             int availableHeight = 0;
             foreach (Control c in centerArea.Controls)
             {
-                if (c is Panel && c.Width == 800)
+                if (c is Panel && c.Width == 760)
                 {
                     availableHeight = c.Top - chatHistory.Top - 20;
                     break;
