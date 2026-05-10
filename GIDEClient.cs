@@ -1,272 +1,162 @@
 using System;
 using System.Collections.Generic;
-using System.Net.Http;
-using System.Text;
+using System.IO;
 using System.Web.Script.Serialization;
 
 namespace GIDE
 {
+    /// <summary>
+    /// GIDE Client - Completely local, free AI coding assistant.
+    /// No cloud services, no API keys, no usage charges.
+    /// Uses self-hosted llama.cpp with free Qwen3 models.
+    /// </summary>
     public class GIDEClient
     {
-        public string CurrentModel = "qwen3:14b";
-        public string Backend = "local";
+        public string CurrentModel = "qwen3-14b";
+        public string CurrentModelDisplayName = "Qwen3 14B";
 
-        private HttpClient _http = new HttpClient();
-        private string _apiKey;
+        private LocalModelEngine _localEngine = null;
+        private HardwareDetector.ModelRecommendation _modelRecommendation = null;
 
         public GIDEClient()
         {
-            _apiKey = Config.LoadApiKey();
-            // Increase timeout for large responses
-            _http.Timeout = TimeSpan.FromMinutes(5);
+            // Detect hardware and select appropriate model
+            InitializeLocalModel();
+        }
+
+        private void InitializeLocalModel()
+        {
+            // Detect hardware and get recommendation
+            var hardware = HardwareDetector.GetHardwareInfo();
+            _modelRecommendation = HardwareDetector.RecommendModel(hardware);
+
+            // Check if user has a saved preference
+            string savedModel = LoadSelectedModelFromConfig();
+            if (!string.IsNullOrEmpty(savedModel))
+            {
+                // Verify the saved model can run on this hardware
+                var savedModelInfo = ModelManager.GetModelInfo(savedModel);
+                long ramGB = (long)(hardware.TotalRAM / (1024 * 1024 * 1024));
+                long vramGB = hardware.BestGPU != null ? (long)(hardware.BestGPU.DedicatedVRAM / (1024 * 1024 * 1024)) : 0;
+
+                bool canRunSaved = ramGB >= savedModelInfo.MinRamGB || vramGB >= savedModelInfo.MinVramGB;
+
+                if (canRunSaved)
+                {
+                    CurrentModel = savedModel;
+                    _modelRecommendation = savedModelInfo;
+                    CurrentModelDisplayName = _modelRecommendation.DisplayName;
+                    return;
+                }
+            }
+
+            // Use hardware recommendation
+            CurrentModel = _modelRecommendation.ModelId;
+            CurrentModelDisplayName = _modelRecommendation.DisplayName;
+        }
+
+        private string LoadSelectedModelFromConfig()
+        {
+            try
+            {
+                string configPath = Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+                    ".gide", "config.json");
+
+                if (File.Exists(configPath))
+                {
+                    string json = File.ReadAllText(configPath);
+                    var serializer = new System.Web.Script.Serialization.JavaScriptSerializer();
+                    var config = serializer.Deserialize<System.Collections.Generic.Dictionary<string, object>>(json);
+
+                    if (config != null && config.ContainsKey("selected_model"))
+                        return config["selected_model"].ToString();
+                }
+            }
+            catch { }
+
+            return null;
+        }
+
+        public void SetModel(HardwareDetector.ModelRecommendation model)
+        {
+            _modelRecommendation = model;
+        }
+
+        public bool InitializeLocalEngine()
+        {
+            // Always create a new engine to ensure correct model is loaded
+            _localEngine = new LocalModelEngine();
+            bool result = _localEngine.Initialize(_modelRecommendation);
+            if (!result)
+            {
+                _lastError = _localEngine.LastError;
+            }
+            return result;
+        }
+
+        private string _lastError = "";
+
+        public string GetLastError()
+        {
+            return _lastError;
         }
 
         public string Generate(List<ChatMessage> messages, string systemPrompt)
         {
-            if (Backend == "local")
-                return GenerateOllama(messages, systemPrompt);
-            else
-                return GenerateOpenRouter(messages, systemPrompt);
-        }
-
-        private string GenerateOllama(List<ChatMessage> messages, string systemPrompt)
-        {
-            try
+            // Ensure local engine is initialized
+            if (_localEngine == null)
             {
-                // Ensure Ollama is running
-                if (!EnsureOllamaRunning())
+                if (!InitializeLocalEngine())
                 {
-                    return "[Ollama Error] Ollama service is not running.\n\n" +
-                           "Please start Ollama by:\n" +
-                           "1. Open Command Prompt as Administrator\n" +
-                           "2. Run: ollama serve\n" +
-                           "3. Keep the window open\n" +
-                           "4. Restart GIDE\n\n" +
-                           "Or use '/cloud' to switch to cloud mode.";
-                }
-
-                string payload = "{\"model\":\"" + CurrentModel + "\",\"messages\":" + 
-                    SimpleSerialize(messages, systemPrompt) + ",\"stream\":false,\"options\":{\"temperature\":0.6}}";
-
-                var content = new StringContent(payload, Encoding.UTF8, "application/json");
-                var response = _http.PostAsync("http://localhost:11434/api/chat", content).Result;
-
-                if (response.IsSuccessStatusCode)
-                {
-                    string json = response.Content.ReadAsStringAsync().Result;
-                    
-                    // Try to parse using JSON serializer for better reliability
-                    try
-                    {
-                        var serializer = new JavaScriptSerializer();
-                        var result = serializer.Deserialize<Dictionary<string, object>>(json);
-                        if (result.ContainsKey("message"))
-                        {
-                            var message = result["message"] as Dictionary<string, object>;
-                            if (message != null && message.ContainsKey("content"))
-                                return StripThinkTags(message["content"].ToString());
-                        }
-                    }
-                    catch { }
-                    
-                    // Fallback to string parsing
-                    int start = json.IndexOf("\"content\":\"") + 11;
-                    if (start > 11)
-                    {
-                        int end = json.IndexOf("\"", start);
-                        if (end > start)
-                            return StripThinkTags(json.Substring(start, end - start).Replace("\\n", "\n").Replace("\\\"", "\""));
-                    }
-                    
-                    return "[Ollama Error] Could not parse response";
-                }
-                
-                return "[Ollama Error] HTTP " + response.StatusCode + " - Make sure Ollama is running";
-            }
-            catch (Exception ex)
-            {
-                return "[Ollama Failed] " + ex.Message;
-            }
-        }
-
-        private string GenerateOpenRouter(List<ChatMessage> messages, string systemPrompt)
-        {
-            // Check for API key
-            if (string.IsNullOrEmpty(_apiKey))
-            {
-                _apiKey = Config.SetupApiKey();
-                if (string.IsNullOrEmpty(_apiKey))
-                    return "[OpenRouter Error] No API key provided. Please set up your API key.";
-            }
-
-            try
-            {
-                // Build the request payload
-                var requestBody = new Dictionary<string, object>();
-                requestBody.Add("model", "deepseek/deepseek-r1-0528");
-                requestBody.Add("messages", BuildMessagesArray(messages, systemPrompt));
-                requestBody.Add("temperature", 0.6);
-                requestBody.Add("max_tokens", 8192);
-
-                var serializer = new JavaScriptSerializer();
-                string payload = serializer.Serialize(requestBody);
-                
-                var content = new StringContent(payload, Encoding.UTF8, "application/json");
-                _http.DefaultRequestHeaders.Clear();
-                _http.DefaultRequestHeaders.Add("Authorization", "Bearer " + _apiKey);
-                _http.DefaultRequestHeaders.Add("User-Agent", "GIDE/2.6.0");
-
-                var response = _http.PostAsync("https://openrouter.ai/api/v1/chat/completions", content).Result;
-                string json = response.Content.ReadAsStringAsync().Result;
-
-                if (!response.IsSuccessStatusCode)
-                {
-                    return "[OpenRouter Error] HTTP " + response.StatusCode + "\n" + 
-                           "Response: " + json + "\n\n" +
-                           "Check your API key at: https://openrouter.ai/keys";
-                }
-
-                // Parse the response
-                try
-                {
-                    var result = serializer.Deserialize<Dictionary<string, object>>(json);
-                    if (result.ContainsKey("choices"))
-                    {
-                        var choices = result["choices"] as object[];
-                        if (choices != null && choices.Length > 0)
-                        {
-                            var choice = choices[0] as Dictionary<string, object>;
-                            if (choice != null && choice.ContainsKey("message"))
-                            {
-                                var message = choice["message"] as Dictionary<string, object>;
-                                if (message != null && message.ContainsKey("content"))
-                                {
-                                    string content_text = message["content"].ToString();
-                                    return content_text.Replace("\\n", "\n").Replace("\\\"", "\"");
-                                }
-                            }
-                        }
-                    }
-                    
-                    return "[OpenRouter Error] Could not parse response: " + json.Substring(0, Math.Min(200, json.Length));
-                }
-                catch (Exception parseEx)
-                {
-                    return "[OpenRouter Error] Parse failed: " + parseEx.Message;
+                    return "[Local Engine Error] Failed to initialize local model engine.\n\n" +
+                           "This may be due to:\n" +
+                           "- Insufficient RAM (need at least 4GB free)\n" +
+                           "- Model download failed - check internet connection\n" +
+                           "- llama.cpp server failed to start\n\n" +
+                           "Try restarting GIDE or run '/install' to re-download components.";
                 }
             }
-            catch (Exception ex)
-            {
-                return "[OpenRouter Error] " + ex.Message;
-            }
+
+            return _localEngine.Generate(messages, systemPrompt, _modelRecommendation.ContextLength);
         }
 
-        private object[] BuildMessagesArray(List<ChatMessage> messages, string systemPrompt)
+        public void SwitchModel(string model)
         {
-            var messageList = new List<object>();
-            
-            // Add system message
-            var systemMsg = new Dictionary<string, object>();
-            systemMsg.Add("role", "system");
-            systemMsg.Add("content", systemPrompt);
-            messageList.Add(systemMsg);
-            
-            // Add conversation history
-            foreach (ChatMessage msg in messages)
-            {
-                var chatMsg = new Dictionary<string, object>();
-                chatMsg.Add("role", msg.Role);
-                chatMsg.Add("content", msg.Content);
-                messageList.Add(chatMsg);
-            }
-            
-            return messageList.ToArray();
-        }
-
-        private string SimpleSerialize(List<ChatMessage> messages, string systemPrompt)
-        {
-            string result = "[{\"role\":\"system\",\"content\":\"" + EscapeJson(systemPrompt) + "\"}";
-            foreach (ChatMessage msg in messages)
-            {
-                result += ",{\"role\":\"" + msg.Role + "\",\"content\":\"" + EscapeJson(msg.Content) + "\"}";
-            }
-            result += "]";
-            return result;
-        }
-
-        private string StripThinkTags(string text)
-        {
-            if (string.IsNullOrEmpty(text)) return text;
-            // Remove <think>...</think> blocks (qwen3 thinking mode output)
-            int start = text.IndexOf("<think>");
-            while (start >= 0)
-            {
-                int end = text.IndexOf("</think>", start);
-                if (end < 0) break;
-                text = text.Substring(0, start) + text.Substring(end + 8);
-                start = text.IndexOf("<think>");
-            }
-            return text.TrimStart('\n', '\r', ' ');
-        }
-
-        private string EscapeJson(string text)
-        {
-            if (string.IsNullOrEmpty(text))
-                return "";
-            
-            return text.Replace("\\", "\\\\")
-                      .Replace("\"", "\\\"")
-                      .Replace("\n", "\\n")
-                      .Replace("\r", "\\r")
-                      .Replace("\t", "\\t");
-        }
-
-        private bool EnsureOllamaRunning()
-        {
-            try
-            {
-                // Quick check if Ollama is responding
-                var checkResponse = _http.GetAsync("http://localhost:11434/api/tags").Result;
-                if (checkResponse.IsSuccessStatusCode)
-                    return true;
-                    
-                // Try to start Ollama
-                try
-                {
-                    System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
-                    {
-                        FileName = "ollama",
-                        Arguments = "serve",
-                        UseShellExecute = true,
-                        CreateNoWindow = true
-                    });
-                    System.Threading.Thread.Sleep(3000);
-                    return true;
-                }
-                catch
-                {
-                    return false;
-                }
-            }
-            catch
-            {
-                return false;
-            }
-        }
-
-        public void SwitchToCloud()
-        {
-            Backend = "openrouter";
-            Console.WriteLine("  → Switched to Cloud (OpenRouter DeepSeek R1)");
-            Console.WriteLine("  Make sure you have an API key from https://openrouter.ai/keys");
-        }
-
-        public void SwitchToLocal(string model)
-        {
-            Backend = "local";
             if (!string.IsNullOrEmpty(model))
+            {
                 CurrentModel = model;
-            Console.WriteLine("  → Switched to Local Ollama: " + CurrentModel);
+                _modelRecommendation = ModelManager.GetModelInfo(model);
+                CurrentModelDisplayName = _modelRecommendation.DisplayName;
+            }
+
+            // Re-initialize with new model
+            if (_localEngine != null)
+                _localEngine.Shutdown();
+            _localEngine = null;
+
+            Console.WriteLine("  → Switched to: " + CurrentModelDisplayName);
+
+            // Auto-initialize new model
+            if (!InitializeLocalEngine())
+            {
+                Console.ForegroundColor = ConsoleColor.Yellow;
+                Console.WriteLine("  Warning: Failed to load new model. May need to download first.");
+                Console.ResetColor();
+            }
+        }
+
+        public void PrintModelInfo()
+        {
+            HardwareDetector.PrintHardwareInfo();
+        }
+
+        public void PrintStatus()
+        {
+            Console.WriteLine("  Current model: " + CurrentModelDisplayName);
+            Console.WriteLine("  Model ID: " + CurrentModel);
+            Console.WriteLine("  Context length: " + _modelRecommendation.ContextLength + " tokens");
+            Console.WriteLine("  Engine: " + (_localEngine != null ? "Running" : "Not initialized"));
         }
     }
 

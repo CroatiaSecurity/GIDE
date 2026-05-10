@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.Text;
+using System.Windows.Forms;
 
 namespace GIDE
 {
@@ -13,14 +14,29 @@ namespace GIDE
             // Force TLS 1.2 for HTTPS requests (required for modern servers)
             System.Net.ServicePointManager.SecurityProtocol = System.Net.SecurityProtocolType.Tls12;
 
-            // Handle context menu / --dir argument
-            if (args.Length > 0)
+            // Check for console mode flag
+            if (args.Length > 0 && (args[0] == "--console" || args[0] == "/console"))
             {
-                string arg = args[0];
+                RunConsoleMode(args);
+                return;
+            }
+
+            // Default: Launch GUI
+            Application.EnableVisualStyles();
+            Application.SetCompatibleTextRenderingDefault(false);
+            Application.Run(new GIDEMainForm());
+        }
+
+        static void RunConsoleMode(string[] args)
+        {
+            // Handle context menu / --dir argument
+            if (args.Length > 1)
+            {
+                string arg = args[1];
                 if (arg.StartsWith("--dir="))
                     arg = arg.Substring(6);
-                else if (arg == "--dir" && args.Length > 1)
-                    arg = args[1];
+                else if (arg == "--dir" && args.Length > 2)
+                    arg = args[2];
 
                 WorkDir = Path.GetFullPath(arg);
             }
@@ -33,24 +49,27 @@ namespace GIDE
 
             Console.WriteLine("  Checking environment...");
 
-            if (!Installer.EnsureOllamaInstalled())
-            {
-                Console.WriteLine("\n  Press any key to exit...");
-                Console.ReadKey();
-                return;
-            }
-
-            if (!Installer.EnsureOllamaRunning())
-                Console.WriteLine("  Warning: Ollama service may not be running");
-
-            if (!Installer.EnsureModelInstalled("qwen3:14b"))
-                Console.WriteLine("\n  Warning: Model not available, some features may not work");
-
-            Console.WriteLine();
-
             HistoryManager history = new HistoryManager(WorkDir);
             ToolExecutor executor = new ToolExecutor(WorkDir);
             GIDEClient client = new GIDEClient();
+
+            // Hardware detection and model selection
+            Console.WriteLine();
+            client.PrintModelInfo();
+            Console.WriteLine();
+
+            // Initialize local model engine on startup
+            Console.WriteLine("  Initializing local model engine (first run may download components)...");
+            if (!client.InitializeLocalEngine())
+            {
+                Console.ForegroundColor = ConsoleColor.Yellow;
+                Console.WriteLine("  Warning: Local model engine failed to initialize.");
+                Console.WriteLine("  Run '/install' to retry setup, or check disk space/RAM.");
+                Console.ResetColor();
+                Console.WriteLine();
+            }
+
+            Console.WriteLine();
 
             PrintBanner();
             Console.WriteLine("  Project: " + WorkDir);
@@ -61,7 +80,7 @@ namespace GIDE
                 Console.ForegroundColor = ConsoleColor.Green;
                 Console.Write("  You: ");
                 Console.ResetColor();
-                string input = Console.ReadLine();
+                string input = ReadMultiLineInput();
                 if (string.IsNullOrEmpty(input)) continue;
 
                 if (input.StartsWith("/"))
@@ -84,6 +103,17 @@ namespace GIDE
                     Console.ResetColor();
 
                     string response = client.Generate(history.GetMessages(), systemPrompt);
+                    
+                    // Try to auto-convert markdown code blocks to tool format
+                    string converted = ToolParser.TryConvertMarkdownToTools(response, WorkDir);
+                    if (converted != null)
+                    {
+                        Console.ForegroundColor = ConsoleColor.DarkYellow;
+                        Console.WriteLine("  [Auto-converting markdown to tool format...]");
+                        Console.ResetColor();
+                        response = converted;
+                    }
+                    
                     var tools = ToolParser.Parse(response);
                     string display = ToolParser.StripTools(response);
 
@@ -97,6 +127,31 @@ namespace GIDE
 
                     if (tools.Count == 0)
                     {
+                        // Detect if the model output a markdown/planning response instead of tools
+                        bool isMarkdownPlan = response.Contains("###") || 
+                                              response.Contains("## ") ||
+                                              response.Contains("- **") ||
+                                              response.Contains("1. ") ||
+                                              response.Contains("| ") ||
+                                              response.Contains("roadmap") ||
+                                              response.Contains("timeline") ||
+                                              response.Contains("we will") ||
+                                              response.Contains("We will") ||
+                                              response.Contains("consider") ||
+                                              response.Contains("recommend");
+
+                        if (isMarkdownPlan && i < maxIterations - 1)
+                        {
+                            // Force retry with explicit correction
+                            Console.ForegroundColor = ConsoleColor.Red;
+                            Console.WriteLine("\n  [REJECTED: You wrote a plan instead of code. Retrying with correction...]");
+                            Console.ResetColor();
+
+                            history.AddAssistantMessage(response);
+                            history.AddUserMessage("STOP. You just wrote a plan/description instead of code. That is WRONG. You MUST use <<<TOOL:WRITE>>> to write actual code files. Do it NOW. No more explanations - just <<<TOOL:WRITE>>> with the complete fixed code.");
+                            continue; // Retry
+                        }
+
                         if (string.IsNullOrWhiteSpace(display))
                         {
                             Console.ForegroundColor = ConsoleColor.Yellow;
@@ -134,74 +189,85 @@ namespace GIDE
         {
             string fileTree = GetProjectFileTree();
             string stackInfo = DetectTechStack();
+            string fileContents = ScanAllProjectFiles();
 
-            return @"You are GIDE, a coding agent. Your identity is GIDE. You are not Qwen, you are not an assistant — you are GIDE.
+            return @"/no_think
+YOU ARE GIDE. YOU WRITE CODE. YOU DO NOT WRITE PLANS.
 
-You have direct file system access via the tool system below. Never describe what you will do — just do it with the tools.
+STOP! Before you respond, check: Are you about to write markdown headers (###), bullet points (-), or numbered lists without code? If yes, STOP and write <<<TOOL:WRITE>>> instead.
 
----
+=== YOUR ONLY ALLOWED RESPONSE FORMAT ===
 
-TOOL: Write or overwrite a file
 <<<TOOL:WRITE>>>
 path/to/file.ext
 <<<CONTENT>>>
-complete file content here
+actual code here
 <<<END_CONTENT>>>
 <<<END_TOOL>>>
 
-TOOL: Read a file
+Brief 1-2 sentence summary.
+
+=== EXAMPLE ===
+
+User: Fix the security bug in Validator.cs
+You respond:
+
+<<<TOOL:WRITE>>>
+src/Validator.cs
+<<<CONTENT>>>
+using System;
+namespace App {
+    public class Validator {
+        public bool Validate(string input) {
+            // fixed implementation
+            return !string.IsNullOrEmpty(input);
+        }
+    }
+}
+<<<END_CONTENT>>>
+<<<END_TOOL>>>
+
+Fixed the null check vulnerability in Validator.
+
+=== BANNED (your response will be rejected) ===
+
+- Markdown headers like ### or ##
+- Bullet point lists describing what to do
+- Numbered improvement plans
+- Words: roadmap, timeline, phase, robust, comprehensive, defense in depth
+- Sentences starting with: We will, We should, Consider, I recommend
+
+=== OTHER TOOLS ===
+
 <<<TOOL:READ>>>
-path/to/file.ext
+path/file
 <<<END_TOOL>>>
 
-TOOL: Run a shell command
 <<<TOOL:RUN>>>
-command here
+command
 <<<END_TOOL>>>
 
-TOOL: List files
-<<<TOOL:LIST>>>
-optional/subdirectory
-<<<END_TOOL>>>
-
----
-
-RULES — follow exactly:
-
-1. ALWAYS use WRITE to create or modify files. Never output file content as plain text.
-2. When fixing or editing an existing file, WRITE to that EXACT file path. Do NOT create a new file with a different name.
-3. Write COMPLETE file content every time. No stubs, no placeholders, no '// TODO', no '// rest of code here', no '...'. Every function fully implemented.
-4. Write the most advanced, complete, and correct implementation you are capable of.
-5. After writing files, give a SHORT summary (2-4 sentences max). No lengthy explanations.
-6. READ a file before editing it if you need to see its current content.
-7. You can use multiple tools in one response.
-8. Tool results are returned to you — use them to verify and continue.
-9. Never truncate file content. If a file is large, write all of it.
-10. STAY WITHIN THE DETECTED TECH STACK. Only use languages, frameworks, libraries, and APIs that are already present in the project or are compatible with the detected runtime/version. Do NOT introduce newer runtimes, package managers, or frameworks not already in use.
+=== PROJECT INFO ===
 
 CURRENT PROJECT: " + WorkDir + @"
 
-DETECTED TECH STACK (you MUST stay within these constraints):
+TECH STACK (stay within these constraints):
 " + stackInfo + @"
 
-PROJECT FILES (these are the ONLY files that exist — use these exact paths when editing):
+PROJECT FILES (use these exact paths):
 " + fileTree + @"
 
----
+=== IMPORTANT ===
 
-CRITICAL RULES ON TECH STACK:
-- If the project targets .NET 4.8, use only .NET 4.8 compatible APIs. No Task.Run with async/await patterns from .NET 6+, no record types, no top-level statements, no nullable reference types syntax, no .NET 6/7/8/9 APIs.
-- If the project uses a specific language version, stay on that version.
-- If the project has existing dependencies (NuGet packages, npm packages, etc.), prefer using those over adding new ones.
-- Do NOT suggest migrating to a newer framework or runtime unless explicitly asked.
+- If targeting .NET 4.8: No async Main, no record types, no top-level statements, no .NET 6+ APIs.
+- When editing a file, use the EXACT path from PROJECT FILES above.
+- NEVER use markdown. ALWAYS use <<<TOOL:WRITE>>> for any code output.
 
-CRITICAL RULES ON FILES:
-- If the user asks you to fix, edit, or improve a file, WRITE to the existing file path shown above.
-- Do NOT invent new filenames. Do NOT create a copy. Overwrite the original.
+=== ALL FILE CONTENTS (PRE-SCANNED) ===
 
----
+" + fileContents + @"
 
-You are GIDE. Write complete code. Use the tools.";
+=== END OF FILE CONTENTS ===";
         }
 
         private static string DetectTechStack()
@@ -393,7 +459,9 @@ You are GIDE. Write complete code. Use the tools.";
                 {
                     // Skip hidden/system dirs
                     string name = Path.GetFileName(entry);
-                    if (name.StartsWith(".") || name == "bin" || name == "obj" || name == "node_modules")
+                    string parentDir = Path.GetFileName(Path.GetDirectoryName(entry));
+                    if (name.StartsWith(".") || name == "bin" || name == "obj" || name == "node_modules" ||
+                        parentDir == "bin" || parentDir == "obj" || parentDir == "node_modules")
                         continue;
 
                     string rel = entry.Substring(WorkDir.Length).TrimStart(Path.DirectorySeparatorChar);
@@ -410,13 +478,124 @@ You are GIDE. Write complete code. Use the tools.";
             }
         }
 
+        private static string ScanAllProjectFiles()
+        {
+            var sb = new StringBuilder();
+            string[] codeExtensions = new[] { ".cs", ".vb", ".fs", ".py", ".js", ".ts", ".jsx", ".tsx", ".java", ".kt", ".go", ".rs", ".c", ".cpp", ".h", ".hpp", ".rb", ".php", ".swift", ".m", ".mm", ".lua", ".pl", ".sh", ".bat", ".ps1", ".sql", ".html", ".htm", ".css", ".scss", ".sass", ".less", ".json", ".xml", ".yaml", ".yml", ".toml", ".ini", ".cfg", ".conf", ".md", ".txt", ".dockerfile", ".csproj", ".vbproj", ".fsproj", ".sln" };
+
+            try
+            {
+                string[] files = Directory.GetFiles(WorkDir, "*", SearchOption.AllDirectories);
+                Array.Sort(files);
+
+                foreach (string file in files)
+                {
+                    string name = Path.GetFileName(file);
+                    string ext = Path.GetExtension(file).ToLowerInvariant();
+                    string parentDir = Path.GetFileName(Path.GetDirectoryName(file));
+
+                    // Skip hidden, binary, and system directories
+                    if (name.StartsWith(".") || parentDir == "bin" || parentDir == "obj" || 
+                        parentDir == "node_modules" || parentDir == ".git" || parentDir == ".vs" ||
+                        parentDir == "packages" || parentDir == "debug" || parentDir == "release")
+                        continue;
+
+                    // Only include recognized code/text file extensions
+                    bool isCodeFile = false;
+                    foreach (string codeExt in codeExtensions)
+                    {
+                        if (ext == codeExt)
+                        {
+                            isCodeFile = true;
+                            break;
+                        }
+                    }
+                    if (!isCodeFile) continue;
+
+                    // Skip very large files (>100KB)
+                    FileInfo fi = new FileInfo(file);
+                    if (fi.Length > 100 * 1024) continue;
+
+                    string rel = file.Substring(WorkDir.Length).TrimStart(Path.DirectorySeparatorChar);
+
+                    try
+                    {
+                        string content = File.ReadAllText(file);
+                        sb.AppendLine("=== FILE: " + rel + " ===");
+                        sb.AppendLine(content);
+                        sb.AppendLine();
+                    }
+                    catch { /* skip unreadable files */ }
+                }
+            }
+            catch { /* non-fatal */ }
+
+            string result = sb.ToString().Trim();
+            return string.IsNullOrEmpty(result) ? "(no readable code files found)" : result;
+        }
+
+        private static string ReadMultiLineInput()
+        {
+            var sb = new StringBuilder();
+            bool firstLine = true;
+            int emptyLineCount = 0;
+
+            while (true)
+            {
+                string line = Console.ReadLine();
+
+                // Single line input: if first line is non-empty and user just presses enter, return it
+                if (firstLine && !string.IsNullOrEmpty(line))
+                {
+                    sb.AppendLine(line);
+                    firstLine = false;
+                    emptyLineCount = 0;
+                    continue;
+                }
+
+                if (firstLine && string.IsNullOrEmpty(line))
+                {
+                    // Empty first line, just return empty
+                    return "";
+                }
+
+                // For multi-line: two consecutive empty lines ends input
+                if (string.IsNullOrEmpty(line))
+                {
+                    emptyLineCount++;
+                    if (emptyLineCount >= 2)
+                    {
+                        // End of input
+                        break;
+                    }
+                    sb.AppendLine(); // preserve single empty line
+                }
+                else
+                {
+                    emptyLineCount = 0;
+                    sb.AppendLine(line);
+                }
+
+                // Show continuation prompt
+                if (!firstLine)
+                {
+                    Console.ForegroundColor = ConsoleColor.DarkGray;
+                    Console.Write("  ...  ");
+                    Console.ResetColor();
+                }
+            }
+
+            return sb.ToString().TrimEnd('\r', '\n', ' ');
+        }
+
         private static void PrintBanner()
         {
             Console.WriteLine("\n  ╔══════════════════════════════════════════════════╗");
-            Console.WriteLine("  ║           GIDE v2.6.0 — .NET 4.8 Edition         ║");
-            Console.WriteLine("  ║  Full logic • Auto overwrite • Project Memory    ║");
-            Console.WriteLine("  ║      Auto-installs Ollama + qwen3:14b            ║");
-            Console.WriteLine("  ╚══════════════════════════════════════════════════╝\n");
+            Console.WriteLine("  ║           GIDE v0.4.0 — Completely Free          ║");
+            Console.WriteLine("  ║  No API keys • No usage limits • 100% Private    ║");
+            Console.WriteLine("  ║  Local AI • Auto hardware detect • Free models   ║");
+            Console.WriteLine("  ╚══════════════════════════════════════════════════╝");
+            Console.WriteLine("  Tip: Paste multiple lines, then press Enter twice to submit.\n");
         }
 
         private static void HandleCommand(string cmd, HistoryManager history, GIDEClient client, ToolExecutor executor)
@@ -426,33 +605,69 @@ You are GIDE. Write complete code. Use the tools.";
                 history.Clear();
                 Console.WriteLine("  [!] History cleared.");
             }
-            else if (cmd.StartsWith("/cloud"))
+            else if (cmd.StartsWith("/model"))
             {
-                client.SwitchToCloud();
+                // Parse optional model parameter: /model [model_id]
+                string modelId = null;
+                if (cmd.Length > 6)
+                    modelId = cmd.Substring(6).Trim();
+
+                if (string.IsNullOrEmpty(modelId))
+                {
+                    client.PrintStatus();
+                }
+                else
+                {
+                    client.SwitchModel(modelId);
+                }
             }
-            else if (cmd.StartsWith("/local"))
+            else if (cmd == "/install" || cmd == "/setup")
             {
-                client.SwitchToLocal("qwen3:14b");
-            }
-            else if (cmd == "/install")
-            {
-                Console.WriteLine("  Re-checking Ollama installation...");
-                Installer.EnsureOllamaInstalled();
-                Installer.EnsureOllamaRunning();
-                Installer.EnsureModelInstalled("qwen3:14b");
+                Console.WriteLine("  Setting up local model engine...");
+                HardwareDetector.PrintHardwareInfo();
+                if (!client.InitializeLocalEngine())
+                {
+                    Console.ForegroundColor = ConsoleColor.Red;
+                    Console.WriteLine("  Setup failed. Check your internet connection and disk space.");
+                    Console.ResetColor();
+                }
             }
             else if (cmd == "/files")
             {
                 Console.WriteLine(GetProjectFileTree());
             }
+            else if (cmd == "/status")
+            {
+                client.PrintStatus();
+            }
+            else if (cmd == "/settings" || cmd == "/models")
+            {
+                Console.WriteLine("  Opening Model Manager GUI...");
+                try
+                {
+                    var form = new GIDESettingsForm();
+                    form.ShowDialog();
+                    Console.WriteLine("  Model Manager closed.");
+                    Console.WriteLine("  Run '/model' to see current selection.");
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine("  Error opening GUI: " + ex.Message);
+                }
+            }
             else if (cmd == "/help")
             {
-                Console.WriteLine("  /local   - Use local Ollama");
-                Console.WriteLine("  /cloud   - Use OpenRouter (DeepSeek R1)");
-                Console.WriteLine("  /clear   - Clear conversation history");
-                Console.WriteLine("  /files   - List project files");
-                Console.WriteLine("  /install - Reinstall/check Ollama");
-                Console.WriteLine("  /help    - Show this help");
+                Console.WriteLine("  /settings      - Open Model Manager GUI (download/manage free models)");
+                Console.WriteLine("  /model         - Show current model status");
+                Console.WriteLine("  /model [id]    - Switch model (qwen3-4b, qwen3-8b, qwen3-14b, qwen3-30b-awq)");
+                Console.WriteLine("  /clear         - Clear conversation history");
+                Console.WriteLine("  /files         - List project files");
+                Console.WriteLine("  /status        - Show engine and model status");
+                Console.WriteLine("  /install       - Re-download model/engine components");
+                Console.WriteLine("  /help          - Show this help");
+                Console.WriteLine();
+                Console.WriteLine("  GIDE is completely free - no API keys, no usage limits.");
+                Console.WriteLine("  All processing runs locally on your hardware.");
             }
             else
             {

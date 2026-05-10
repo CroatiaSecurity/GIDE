@@ -5,74 +5,43 @@ using System.Web.Script.Serialization;
 
 namespace GIDE
 {
+    /// <summary>
+    /// Configuration manager - kept for future settings.
+    /// GIDE v0.3.0+ is local-only, no API keys needed.
+    /// </summary>
     public static class Config
     {
         private static string ConfigPath = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), 
+            Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
             ".gide", "config.json");
 
+        /// <summary>
+        /// Legacy API key loader - kept for backwards compatibility.
+        /// Always returns null as GIDE no longer uses cloud services.
+        /// </summary>
         public static string LoadApiKey()
         {
-            if (File.Exists(ConfigPath))
-            {
-                try
-                {
-                    string json = File.ReadAllText(ConfigPath);
-                    var serializer = new JavaScriptSerializer();
-                    var config = serializer.Deserialize<Dictionary<string, object>>(json);
-                    
-                    if (config != null && config.ContainsKey("api_key"))
-                        return config["api_key"].ToString();
-                }
-                catch { }
-            }
+            // No longer needed - GIDE is local-only
             return null;
         }
 
+        /// <summary>
+        /// Legacy API key setup - no longer functional.
+        /// </summary>
+        [Obsolete("GIDE is now local-only. No API keys needed.")]
         public static string SetupApiKey()
         {
-            string dir = Path.GetDirectoryName(ConfigPath);
-            if (!Directory.Exists(dir))
-                Directory.CreateDirectory(dir);
-
-            Console.WriteLine("\n=== GIDE OpenRouter Setup ===");
-            Console.WriteLine("1. Go to: https://openrouter.ai/keys");
-            Console.WriteLine("2. Create a free API key");
-            Console.WriteLine("3. Copy the key (starts with 'sk-or-v1-')");
-            Console.WriteLine();
-            Console.Write("Paste your API Key: ");
-            string key = Console.ReadLine().Trim();
-
-            if (string.IsNullOrEmpty(key))
-            {
-                Console.WriteLine("No key provided. Cloud mode will not work.");
-                return null;
-            }
-
-            var config = new Dictionary<string, object>();
-            config.Add("api_key", key);
-            config.Add("default_backend", "openrouter");
-            
-            var serializer = new JavaScriptSerializer();
-            string json = serializer.Serialize(config);
-            File.WriteAllText(ConfigPath, json);
-
-            Console.WriteLine("✓ API Key saved successfully!\n");
-            return key;
+            Console.WriteLine("GIDE no longer requires API keys. All processing is local.");
+            return null;
         }
-        
+
+        /// <summary>
+        /// Legacy config save - kept for backwards compatibility.
+        /// </summary>
+        [Obsolete("GIDE is now local-only.")]
         public static void SaveConfig(string key)
         {
-            string dir = Path.GetDirectoryName(ConfigPath);
-            if (!Directory.Exists(dir))
-                Directory.CreateDirectory(dir);
-                
-            var config = new Dictionary<string, object>();
-            config.Add("api_key", key);
-            
-            var serializer = new JavaScriptSerializer();
-            string json = serializer.Serialize(config);
-            File.WriteAllText(ConfigPath, json);
+            // No-op - local-only mode
         }
     }
 }

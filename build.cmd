@@ -8,7 +8,7 @@ echo ================================================
 echo.
 
 set CSC="C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe"
-set VERSION=2.6.0
+set VERSION=0.4.0
 set OUTPUT=dist\GIDE.exe
 
 if not exist %CSC% (
@@ -21,18 +21,26 @@ if not exist dist mkdir dist
 
 echo [+] Compiling GIDE.exe...
 
-%CSC% /target:exe /out:%OUTPUT% /optimize+ /platform:x64 ^
+%CSC% /target:winexe /out:%OUTPUT% /optimize+ /platform:x64 ^
     /reference:System.dll ^
     /reference:System.Core.dll ^
     /reference:System.Net.Http.dll ^
     /reference:System.Web.Extensions.dll ^
+    /reference:System.Management.dll ^
+    /reference:System.Windows.Forms.dll ^
+    /reference:System.Drawing.dll ^
     Program.cs ^
     GIDEClient.cs ^
     ToolExecutor.cs ^
     HistoryManager.cs ^
     ToolParser.cs ^
     Config.cs ^
-    Installer.cs
+    Installer.cs ^
+    HardwareDetector.cs ^
+    ModelManager.cs ^
+    LocalModelEngine.cs ^
+    GIDESettingsForm.cs ^
+    GIDEMainForm.cs
 
 if %ERRORLEVEL% NEQ 0 (
     echo.
